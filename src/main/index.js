@@ -89,7 +89,11 @@ async function initDatabase() {
       userAnswer TEXT NOT NULL,
       explanation TEXT,
       wrongAt INTEGER DEFAULT (strftime('%s', 'now')),
-      reviewCount INTEGER DEFAULT 0
+      reviewCount INTEGER DEFAULT 0,
+      isMastered INTEGER DEFAULT 0,
+      nextReviewTime INTEGER,
+      easeFactor REAL DEFAULT 2.5,
+      interval INTEGER DEFAULT 1
     )
   `)
 
@@ -108,7 +112,12 @@ async function initDatabase() {
       word TEXT NOT NULL,
       meaning TEXT,
       episodeId TEXT,
-      createdAt INTEGER DEFAULT (strftime('%s', 'now'))
+      createdAt INTEGER DEFAULT (strftime('%s', 'now')),
+      reviewCount INTEGER DEFAULT 0,
+      isMastered INTEGER DEFAULT 0,
+      nextReviewTime INTEGER,
+      easeFactor REAL DEFAULT 2.5,
+      interval INTEGER DEFAULT 1
     )
   `)
 
@@ -121,6 +130,45 @@ async function initDatabase() {
 
   saveDatabase()
   log.info('Database initialized successfully')
+}
+
+// 数据库迁移 - 添加新字段
+function migrateDatabase() {
+  try {
+    // 为 wrong_answers 添加间隔重复字段
+    db.run('ALTER TABLE wrong_answers ADD COLUMN isMastered INTEGER DEFAULT 0')
+  } catch (e) {
+    // 字段可能已存在，忽略错误
+  }
+  try {
+    db.run('ALTER TABLE wrong_answers ADD COLUMN nextReviewTime INTEGER')
+  } catch (e) {}
+  try {
+    db.run('ALTER TABLE wrong_answers ADD COLUMN easeFactor REAL DEFAULT 2.5')
+  } catch (e) {}
+  try {
+    db.run('ALTER TABLE wrong_answers ADD COLUMN interval INTEGER DEFAULT 1')
+  } catch (e) {}
+
+  try {
+    // 为 vocabularies 添加间隔重复字段
+    db.run('ALTER TABLE vocabularies ADD COLUMN reviewCount INTEGER DEFAULT 0')
+  } catch (e) {}
+  try {
+    db.run('ALTER TABLE vocabularies ADD COLUMN isMastered INTEGER DEFAULT 0')
+  } catch (e) {}
+  try {
+    db.run('ALTER TABLE vocabularies ADD COLUMN nextReviewTime INTEGER')
+  } catch (e) {}
+  try {
+    db.run('ALTER TABLE vocabularies ADD COLUMN easeFactor REAL DEFAULT 2.5')
+  } catch (e) {}
+  try {
+    db.run('ALTER TABLE vocabularies ADD COLUMN interval INTEGER DEFAULT 1')
+  } catch (e) {}
+
+  saveDatabase()
+  log.info('Database migration completed')
 }
 
 // 添加示例数据
@@ -281,6 +329,13 @@ ipcMain.handle('episodes:delete', (_, id) => {
   return { success: true }
 })
 
+// 更新节目题目
+ipcMain.handle('episodes:updateQuestions', (_, data) => {
+  const { id, questions } = data
+  runSql('UPDATE episodes SET questions = ? WHERE id = ?', [questions, id])
+  return { success: true }
+})
+
 // IPC处理器 - 用户进度
 ipcMain.handle('progress:get', (_, episodeId) => {
   return queryOne('SELECT * FROM user_progress WHERE episodeId = ?', [episodeId])
@@ -314,7 +369,7 @@ ipcMain.handle('wrongAnswers:add', (_, data) => {
     data.questionId,
     data.episodeId,
     data.question,
-    JSON.stringify(data.options),
+    data.options, // 前端已经转为字符串
     data.correctAnswer,
     data.userAnswer,
     data.explanation
@@ -334,6 +389,55 @@ ipcMain.handle('wrongAnswers:delete', (_, id) => {
 ipcMain.handle('wrongAnswers:updateReviewCount', (_, id) => {
   runSql('UPDATE wrong_answers SET reviewCount = reviewCount + 1 WHERE id = ?', [id])
   return { success: true }
+})
+
+// 更新错题复习状态 (SM-2 算法)
+ipcMain.handle('wrongAnswers:updateReview', (_, data) => {
+  const { id, quality } = data // quality: 0-5, 0=完全忘记, 5=完全记住
+  const item = queryOne('SELECT * FROM wrong_answers WHERE id = ?', [id])
+  if (!item) return { success: false, error: '找不到错题' }
+
+  let { easeFactor = 2.5, interval = 1, reviewCount = 0 } = item
+
+  // SM-2 算法
+  if (quality >= 3) {
+    if (reviewCount === 0) {
+      interval = 1
+    } else if (reviewCount === 1) {
+      interval = 6
+    } else {
+      interval = Math.round(interval * easeFactor)
+    }
+    reviewCount++
+  } else {
+    interval = 1
+    reviewCount = 0
+  }
+
+  easeFactor = easeFactor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
+  if (easeFactor < 1.3) easeFactor = 1.3
+
+  const nextReviewTime = Date.now() + interval * 24 * 60 * 60 * 1000
+  const isMastered = quality >= 4 && reviewCount >= 3 ? 1 : 0
+
+  runSql(`
+    UPDATE wrong_answers
+    SET reviewCount = ?, easeFactor = ?, interval = ?, nextReviewTime = ?, isMastered = ?
+    WHERE id = ?
+  `, [reviewCount, easeFactor, interval, nextReviewTime, isMastered, id])
+
+  return { success: true, nextReviewTime, isMastered }
+})
+
+// 获取待复习的错题
+ipcMain.handle('wrongAnswers:getDue', () => {
+  const now = Date.now()
+  return queryAll(`
+    SELECT * FROM wrong_answers
+    WHERE (nextReviewTime IS NULL OR nextReviewTime <= ?)
+    AND isMastered = 0
+    ORDER BY nextReviewTime ASC
+  `, [now])
 })
 
 // IPC处理器 - 收藏
@@ -374,6 +478,55 @@ ipcMain.handle('vocabulary:delete', (_, id) => {
   return { success: true }
 })
 
+// 更新词汇复习状态 (SM-2 算法)
+ipcMain.handle('vocabulary:updateReview', (_, data) => {
+  const { id, quality } = data
+  const item = queryOne('SELECT * FROM vocabularies WHERE id = ?', [id])
+  if (!item) return { success: false, error: '找不到词汇' }
+
+  let { easeFactor = 2.5, interval = 1, reviewCount = 0 } = item
+
+  // SM-2 算法
+  if (quality >= 3) {
+    if (reviewCount === 0) {
+      interval = 1
+    } else if (reviewCount === 1) {
+      interval = 6
+    } else {
+      interval = Math.round(interval * easeFactor)
+    }
+    reviewCount++
+  } else {
+    interval = 1
+    reviewCount = 0
+  }
+
+  easeFactor = easeFactor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
+  if (easeFactor < 1.3) easeFactor = 1.3
+
+  const nextReviewTime = Date.now() + interval * 24 * 60 * 60 * 1000
+  const isMastered = quality >= 4 && reviewCount >= 3 ? 1 : 0
+
+  runSql(`
+    UPDATE vocabularies
+    SET reviewCount = ?, easeFactor = ?, interval = ?, nextReviewTime = ?, isMastered = ?
+    WHERE id = ?
+  `, [reviewCount, easeFactor, interval, nextReviewTime, isMastered, id])
+
+  return { success: true, nextReviewTime, isMastered }
+})
+
+// 获取待复习的词汇
+ipcMain.handle('vocabulary:getDue', () => {
+  const now = Date.now()
+  return queryAll(`
+    SELECT * FROM vocabularies
+    WHERE (nextReviewTime IS NULL OR nextReviewTime <= ?)
+    AND isMastered = 0
+    ORDER BY nextReviewTime ASC
+  `, [now])
+})
+
 // IPC处理器 - 文件选择
 ipcMain.handle('dialog:openFile', async (_, options) => {
   const result = await dialog.showOpenDialog(mainWindow, {
@@ -404,11 +557,391 @@ ipcMain.handle('file:readAsBase64', async (_, filePath) => {
   }
 })
 
+// 数据库备份
+ipcMain.handle('database:backup', async () => {
+  try {
+    const result = await dialog.showSaveDialog(mainWindow, {
+      title: '备份数据库',
+      defaultPath: `openlisten-backup-${new Date().toISOString().slice(0, 10)}.db`,
+      filters: [{ name: 'Database', extensions: ['db'] }]
+    })
+
+    if (!result.canceled && result.filePath) {
+      if (db) {
+        const data = db.export()
+        const buffer = Buffer.from(data)
+        writeFileSync(result.filePath, buffer)
+        return { success: true, path: result.filePath }
+      }
+    }
+    return { success: false }
+  } catch (e) {
+    log.error('Backup failed:', e)
+    return { success: false, error: e.message }
+  }
+})
+
+// 数据库恢复
+ipcMain.handle('database:restore', async () => {
+  try {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: '恢复数据库',
+      filters: [{ name: 'Database', extensions: ['db'] }],
+      properties: ['openFile']
+    })
+
+    if (!result.canceled && result.filePaths.length > 0) {
+      const filePath = result.filePaths[0]
+      const fileBuffer = readFileSync(filePath)
+
+      // 加载恢复的数据库
+      const SQL = await initSqlJs()
+      const newDb = new SQL.Database(fileBuffer)
+
+      // 替换当前数据库
+      if (db) {
+        db.close()
+      }
+      db = newDb
+      saveDatabase()
+
+      return { success: true }
+    }
+    return { success: false }
+  } catch (e) {
+    log.error('Restore failed:', e)
+    return { success: false, error: e.message }
+  }
+})
+
+// 清空数据库
+ipcMain.handle('database:clear', async () => {
+  try {
+    // 删除所有数据表
+    db.run('DELETE FROM episodes')
+    db.run('DELETE FROM user_progress')
+    db.run('DELETE FROM wrong_answers')
+    db.run('DELETE FROM favorites')
+    db.run('DELETE FROM vocabularies')
+    saveDatabase()
+    return { success: true }
+  } catch (e) {
+    log.error('Clear failed:', e)
+    return { success: false, error: e.message }
+  }
+})
+
+// 获取学习统计
+ipcMain.handle('stats:get', async () => {
+  try {
+    const episodeCount = queryOne('SELECT COUNT(*) as count FROM episodes')?.count || 0
+    const completedCount = queryOne("SELECT COUNT(*) as count FROM user_progress WHERE status = 'completed'")?.count || 0
+    const wrongCount = queryOne('SELECT COUNT(*) as count FROM wrong_answers')?.count || 0
+    const vocabCount = queryOne('SELECT COUNT(*) as count FROM vocabularies')?.count || 0
+    const favoriteCount = queryOne('SELECT COUNT(*) as count FROM favorites')?.count || 0
+
+    // 获取最近学习记录来计算连续天数
+    const recentProgress = queryAll('SELECT * FROM user_progress ORDER BY completedAt DESC LIMIT 10')
+    let streakDays = 0
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    for (const p of recentProgress) {
+      if (p.completedAt) {
+        const completedDate = new Date(p.completedAt)
+        completedDate.setHours(0, 0, 0, 0)
+        const diffDays = Math.floor((today - completedDate) / (1000 * 60 * 60 * 24))
+        if (diffDays <= streakDays + 1) {
+          streakDays = diffDays
+        } else {
+          break
+        }
+      }
+    }
+
+    return {
+      success: true,
+      stats: {
+        episodeCount,
+        completedCount,
+        wrongCount,
+        vocabCount,
+        favoriteCount,
+        streakDays
+      }
+    }
+  } catch (e) {
+    log.error('Get stats failed:', e)
+    return { success: false, error: e.message }
+  }
+})
+
+// 测试 AI 连接
+ipcMain.handle('ai:testConnection', async (_, options) => {
+  try {
+    const { provider, apiKey, customUrl, customModel } = options
+
+    const apiUrls = {
+      deepseek: 'https://api.deepseek.com/v1/chat/completions',
+      openai: 'https://api.openai.com/v1/chat/completions',
+      anthropic: 'https://api.anthropic.com/v1/chat/completions'
+    }
+
+    let url = customUrl || apiUrls[provider] || apiUrls.deepseek
+    const modelName = customModel ||
+      (provider === 'deepseek' ? 'deepseek-chat' :
+       provider === 'openai' ? 'gpt-3.5-turbo' :
+       provider === 'anthropic' ? 'claude-3-haiku-20240307' : 'deepseek-chat')
+
+    const headers = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`
+    }
+
+    // Anthropic 需要特殊处理
+    if (provider === 'anthropic') {
+      headers['anthropic-version'] = '2023-06-01'
+    }
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        model: modelName,
+        messages: [{ role: 'user', content: 'Say "hello"' }],
+        max_tokens: 10
+      })
+    })
+
+    if (response.ok) {
+      return { success: true, message: '连接成功！AI 配置正确。' }
+    } else {
+      const error = await response.json()
+      return { success: false, message: error.error?.message || `错误: ${response.status}` }
+    }
+  } catch (e) {
+    log.error('AI test connection error:', e)
+    return { success: false, message: `连接失败: ${e.message}` }
+  }
+})
+
+// AI 对话 API
+ipcMain.handle('ai:chat', async (_, options) => {
+  try {
+    const { provider, apiKey, model, messages, customUrl, customModel } = options
+
+    const apiUrls = {
+      deepseek: 'https://api.deepseek.com/v1/chat/completions',
+      openai: 'https://api.openai.com/v1/chat/completions',
+      anthropic: 'https://api.anthropic.com/v1/chat/completions'
+    }
+
+    let url = customUrl || apiUrls[provider] || apiUrls.deepseek
+    const modelName = customModel || model || 'deepseek-chat'
+
+    const headers = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`
+    }
+
+    // Anthropic 需要特殊处理
+    if (provider === 'anthropic') {
+      headers['anthropic-version'] = '2023-06-01'
+    }
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        model: modelName,
+        messages,
+        max_tokens: 2000,
+        temperature: 0.7
+      })
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      return { success: false, error: error.error?.message || 'API 请求失败' }
+    }
+
+    const data = await response.json()
+
+    // Anthropic 响应格式不同
+    if (provider === 'anthropic') {
+      return {
+        success: true,
+        content: data.content?.[0]?.text || ''
+      }
+    }
+
+    return {
+      success: true,
+      content: data.choices?.[0]?.message?.content || ''
+    }
+  } catch (e) {
+    log.error('AI chat error:', e)
+    return { success: false, error: e.message }
+  }
+})
+
+// AI 生成题目
+ipcMain.handle('ai:generateQuestions', async (_, options) => {
+  try {
+    const { provider, apiKey, model, customUrl, customModel, transcript, translation, title } = options
+
+    const prompt = `你是一个英语学习助手。请根据以下音频内容的原文和翻译，设计3-5道理解选择题。
+
+音频标题：${title}
+
+原文歌词/字幕：
+${transcript}
+
+中文翻译：
+${translation}
+
+请生成选择题，格式如下（JSON数组）：
+[
+  {
+    "id": "q1",
+    "question": "问题内容（英文）",
+    "options": ["A. 选项1", "B. 选项2", "C. 选项3", "D. 选项4"],
+    "correctAnswer": "A. 选项1",
+    "explanation": "解析说明（英文）"
+  }
+]
+
+请注意：correctAnswer 必须与 options 数组中的某个选项完全一致（包括前缀字母）。
+请只返回JSON数组，不要其他内容。`
+
+    const apiUrls = {
+      deepseek: 'https://api.deepseek.com/v1/chat/completions',
+      openai: 'https://api.openai.com/v1/chat/completions',
+      anthropic: 'https://api.anthropic.com/v1/chat/completions'
+    }
+
+    let url = customUrl || apiUrls[provider] || apiUrls.deepseek
+    const modelName = customModel || model || 'deepseek-chat'
+
+    const headers = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`
+    }
+
+    if (provider === 'anthropic') {
+      headers['anthropic-version'] = '2023-06-01'
+    }
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        model: modelName,
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 2000,
+        temperature: 0.7
+      })
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      return { success: false, error: error.error?.message || 'API 请求失败' }
+    }
+
+    const data = await response.json()
+
+    let content
+    if (provider === 'anthropic') {
+      content = data.content?.[0]?.text
+    } else {
+      content = data.choices?.[0]?.message?.content
+    }
+
+    // 解析 JSON
+    const jsonMatch = content.match(/\[[\s\S]*\]/)
+    if (jsonMatch) {
+      const questions = JSON.parse(jsonMatch[0])
+      return { success: true, questions }
+    }
+
+    return { success: false, error: '无法解析生成的题目' }
+  } catch (e) {
+    log.error('AI generate questions error:', e)
+    return { success: false, error: e.message }
+  }
+})
+
+// AI 单词查询
+ipcMain.handle('ai:lookupWord', async (_, options) => {
+  try {
+    const { provider, apiKey, model, customUrl, customModel, word } = options
+
+    const prompt = `请解释以下英语单词，给出：
+1. 音标
+2. 词性
+3. 中文释义
+4. 2个例句（英文）
+
+单词：${word}
+
+请用中文回复。`
+
+    const apiUrls = {
+      deepseek: 'https://api.deepseek.com/v1/chat/completions',
+      openai: 'https://api.openai.com/v1/chat/completions',
+      anthropic: 'https://api.anthropic.com/v1/chat/completions'
+    }
+
+    let url = customUrl || apiUrls[provider] || apiUrls.deepseek
+    const modelName = customModel || model || 'deepseek-chat'
+
+    const headers = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`
+    }
+
+    if (provider === 'anthropic') {
+      headers['anthropic-version'] = '2023-06-01'
+    }
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        model: modelName,
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 500,
+        temperature: 0.7
+      })
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      return { success: false, error: error.error?.message || 'API 请求失败' }
+    }
+
+    const data = await response.json()
+
+    let content
+    if (provider === 'anthropic') {
+      content = data.content?.[0]?.text
+    } else {
+      content = data.choices?.[0]?.message?.content
+    }
+
+    return { success: true, result: content }
+  } catch (e) {
+    log.error('AI lookup word error:', e)
+    return { success: false, error: e.message }
+  }
+})
+
 // 启动应用
 app.whenReady().then(async () => {
   log.info('App ready')
   registerProtocol()
   await initDatabase()
+  migrateDatabase()
   addDemoData()
   createWindow()
 

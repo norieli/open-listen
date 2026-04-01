@@ -16,6 +16,30 @@
 
     <!-- 主内容 -->
     <main class="container" style="padding-top: 30px;">
+      <!-- 学习统计 -->
+      <div class="stats-cards" style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 15px; margin-bottom: 20px;">
+        <div class="card stat-card" style="text-align: center; padding: 15px;">
+          <div style="font-size: 24px; font-weight: bold; color: #667eea;">{{ stats.completedCount }}</div>
+          <div style="font-size: 13px; color: #666;">已完成</div>
+        </div>
+        <div class="card stat-card" style="text-align: center; padding: 15px;">
+          <div style="font-size: 24px; font-weight: bold; color: #10b981;">{{ stats.episodeCount }}</div>
+          <div style="font-size: 13px; color: #666;">课程总数</div>
+        </div>
+        <div class="card stat-card" style="text-align: center; padding: 15px;">
+          <div style="font-size: 24px; font-weight: bold; color: #ef4444;">{{ stats.wrongCount }}</div>
+          <div style="font-size: 13px; color: #666;">错题数</div>
+        </div>
+        <div class="card stat-card" style="text-align: center; padding: 15px;">
+          <div style="font-size: 24px; font-weight: bold; color: #f59e0b;">{{ stats.vocabCount }}</div>
+          <div style="font-size: 13px; color: #666;">生词数</div>
+        </div>
+        <div class="card stat-card" style="text-align: center; padding: 15px;">
+          <div style="font-size: 24px; font-weight: bold; color: #8b5cf6;">{{ stats.streakDays }}🔥</div>
+          <div style="font-size: 13px; color: #666;">连续学习</div>
+        </div>
+      </div>
+
       <!-- 导入按钮 -->
       <div class="card">
         <div class="flex" style="justify-content: space-between; align-items: center;">
@@ -86,6 +110,15 @@ const episodes = ref([])
 const favorites = ref([])
 const progressMap = ref({})
 const currentDifficulty = ref('all')
+
+// 学习统计
+const stats = ref({
+  episodeCount: 0,
+  completedCount: 0,
+  wrongCount: 0,
+  vocabCount: 0,
+  streakDays: 0
+})
 
 const difficulties = [
   { value: 'all', label: '全部' },
@@ -177,5 +210,18 @@ onMounted(async () => {
   await loadEpisodes()
   await loadFavorites()
   await loadProgress()
+  await loadStats()
 })
+
+// 加载统计数据
+const loadStats = async () => {
+  try {
+    const result = await window.api.stats.get()
+    if (result.success) {
+      stats.value = result.stats
+    }
+  } catch (e) {
+    console.error('Failed to load stats:', e)
+  }
+}
 </script>

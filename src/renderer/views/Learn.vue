@@ -128,15 +128,16 @@
       <!-- 读 - 原文 -->
       <div v-show="activeTab === 'read'" class="tab-content">
         <div class="transcript">
-          <div v-if="currentLineIndex >= 0" style="margin-bottom: 20px; padding: 15px; background: #e8f5e9; border-radius: 8px;">
+          <div v-if="currentLineIndex >= 0" style="margin-bottom: 20px; padding: 15px; background: #5d5d5d; border-radius: 8px; color: #fff;">
             <strong>当前播放：</strong>{{ transcriptLines[currentLineIndex]?.text }}
           </div>
           
-          <p 
-            v-for="(line, index) in transcriptLines" 
+          <p
+            v-for="(line, index) in transcriptLines"
             :key="index"
             :class="{ current: currentLineIndex === index }"
             @click="playFromLine(index)"
+            @dblclick="onWordClick(line.text)"
           >
             <span style="color: #999; margin-right: 10px;">{{ index + 1 }}</span>
             {{ line.text }}
@@ -152,7 +153,26 @@
 
       <!-- 练 - 做题 -->
       <div v-show="activeTab === 'practice'" class="tab-content">
-        <div v-if="!quizStarted" class="card text-center">
+        <!-- AI 生成题目 -->
+        <div class="card" style="margin-bottom: 20px;">
+          <div class="flex" style="justify-content: space-between; align-items: center;">
+            <div>
+              <h3 class="card-title" style="margin-bottom: 5px;">📝 练习</h3>
+              <p style="color: #666; font-size: 13px; margin: 0;">
+                共 {{ questions.length }} 道题
+              </p>
+            </div>
+            <button
+              class="btn btn-primary"
+              @click="generateQuestionsWithAI"
+              :disabled="generatingQuestions"
+            >
+              {{ generatingQuestions ? '🤖 生成中...' : '🤖 AI 生成题目' }}
+            </button>
+          </div>
+        </div>
+
+        <div v-if="!quizStarted && questions.length === 0" class="card text-center">
           <h3>📝 开始测验</h3>
           <p style="margin: 20px 0;">共 {{ questions.length }} 道题</p>
           <button class="btn btn-primary" style="font-size: 18px; padding: 15px 40px;" @click="startQuiz">
@@ -161,8 +181,30 @@
         </div>
 
         <div v-else>
+          <!-- 答题完成 -->
+          <div v-if="quizCompleted" class="card text-center">
+            <h3>🎉 答题完成！</h3>
+            <div style="font-size: 48px; margin: 30px 0;">
+              {{ correctCount }} / {{ questions.length }}
+            </div>
+            <p style="margin-bottom: 30px;">
+              正确率：{{ Math.round(correctCount / questions.length * 100) }}%
+            </p>
+            <div class="flex gap-10" style="justify-content: center;">
+              <button class="btn btn-secondary" @click="reviewWrongAnswers">
+                复习错题
+              </button>
+              <button class="btn btn-primary" @click="restartQuiz">
+                再答一次
+              </button>
+              <button class="btn btn-primary" @click="$router.push('/')">
+                返回首页
+              </button>
+            </div>
+          </div>
+
           <!-- 答题中 -->
-          <div v-if="currentQuestionIndex < questions.length">
+          <div v-else>
             <div class="question-card">
               <div class="question-text">
                 <strong>第 {{ currentQuestionIndex + 1 }} 题：</strong>
@@ -211,29 +253,31 @@
               </div>
             </div>
           </div>
-
-          <!-- 答题完成 -->
-          <div v-else class="card text-center">
-            <h3>🎉 答题完成！</h3>
-            <div style="font-size: 48px; margin: 30px 0;">
-              {{ correctCount }} / {{ questions.length }}
-            </div>
-            <p style="margin-bottom: 30px;">
-              正确率：{{ Math.round(correctCount / questions.length * 100) }}%
-            </p>
-            <div class="flex gap-10" style="justify-content: center;">
-              <button class="btn btn-secondary" @click="reviewWrongAnswers">
-                复习错题
-              </button>
-              <button class="btn btn-primary" @click="$router.push('/')">
-                返回首页
-              </button>
-            </div>
-          </div>
         </div>
       </div>
 
     </main>
+
+    <!-- 单词查询对话框 -->
+    <div v-if="wordLookupDialog" class="modal-overlay" @click.self="wordLookupDialog = false">
+      <div class="modal-content card" style="max-width: 500px; width: 90%;">
+        <h3 class="card-title">查询单词: {{ lookupWord }}</h3>
+        <div v-if="lookingUp" style="text-align: center; padding: 30px;">
+          <div class="loading">🤔 查询中...</div>
+        </div>
+        <div v-else-if="lookupResult" style="padding: 15px 0;">
+          <div style="white-space: pre-wrap; line-height: 1.8;">{{ lookupResult }}</div>
+          <div class="flex gap-10" style="margin-top: 20px; justify-content: center;">
+            <button class="btn btn-primary" @click="addToVocabulary">
+              📚 加入生词本
+            </button>
+            <button class="btn btn-secondary" @click="wordLookupDialog = false">
+              关闭
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -278,8 +322,16 @@ const quizStarted = ref(false)
 const currentQuestionIndex = ref(0)
 const selectedAnswer = ref(null)
 const showResult = ref(false)
+const quizCompleted = ref(false)
 const correctCount = ref(0)
 const wrongAnswers = ref([])
+const generatingQuestions = ref(false)
+
+// 单词查询
+const wordLookupDialog = ref(false)
+const lookupWord = ref('')
+const lookupResult = ref('')
+const lookingUp = ref(false)
 
 // 计算属性
 const progressPercent = computed(() => {
@@ -414,6 +466,7 @@ const playFromLine = (index) => {
 // 答题相关
 const startQuiz = () => {
   quizStarted.value = true
+  quizCompleted.value = false
   currentQuestionIndex.value = 0
   correctCount.value = 0
   wrongAnswers.value = []
@@ -428,24 +481,28 @@ const selectAnswer = (option) => {
 
 const submitAnswer = () => {
   if (!selectedAnswer.value || showResult.value) return
-  
+
   showResult.value = true
-  
+
   const isCorrect = selectedAnswer.value === currentQuestion.value.correctAnswer
   if (isCorrect) {
     correctCount.value++
   } else {
     wrongAnswers.value.push(currentQuestion.value)
-    // 保存到错题本
-    window.api.wrongAnswers.add({
-      questionId: currentQuestion.value.id,
-      episodeId: episode.value.id,
-      question: currentQuestion.value.question,
-      options: currentQuestion.value.options,
-      correctAnswer: currentQuestion.value.correctAnswer,
-      userAnswer: selectedAnswer.value,
-      explanation: currentQuestion.value.explanation
-    })
+    // 保存到错题本（options 需要转成字符串）
+    try {
+      window.api.wrongAnswers.add({
+        questionId: currentQuestion.value.id,
+        episodeId: episode.value.id,
+        question: currentQuestion.value.question,
+        options: JSON.stringify(currentQuestion.value.options),
+        correctAnswer: currentQuestion.value.correctAnswer,
+        userAnswer: selectedAnswer.value,
+        explanation: currentQuestion.value.explanation
+      })
+    } catch (e) {
+      console.error('保存错题失败:', e)
+    }
   }
 }
 
@@ -455,9 +512,20 @@ const nextQuestion = () => {
     selectedAnswer.value = null
     showResult.value = false
   } else {
-    // 答题完成，更新进度
+    // 答题完成，显示结果页面
+    quizCompleted.value = true
     updateStatus('completed')
   }
+}
+
+// 开始新的答题
+const restartQuiz = () => {
+  quizCompleted.value = false
+  currentQuestionIndex.value = 0
+  selectedAnswer.value = null
+  showResult.value = false
+  correctCount.value = 0
+  wrongAnswers.value = []
 }
 
 const reviewWrongAnswers = () => {
@@ -481,10 +549,23 @@ const loadEpisode = async () => {
   if (episode.value) {
     // 解析LRC歌词
     transcriptLines.value = parseLRC(episode.value.lrc)
-    
+
     // 解析题目
     try {
       questions.value = JSON.parse(episode.value.questions || '[]')
+      // 兼容处理：确保 correctAnswer 与 options 格式一致
+      questions.value = questions.value.map(q => {
+        if (q.options && q.correctAnswer) {
+          // 如果 correctAnswer 只是单个字母如 "A"，找到对应选项
+          if (q.correctAnswer.length <= 2) {
+            const matched = q.options.find(opt => opt.startsWith(q.correctAnswer + '.'))
+            if (matched) {
+              q.correctAnswer = matched
+            }
+          }
+        }
+        return q
+      })
     } catch (e) {
       questions.value = []
     }
@@ -559,7 +640,7 @@ const loadEpisode = async () => {
         })
       }
     }
-    
+
     // 加载进度
     const progress = await window.api.progress.get(id)
     if (progress) {
@@ -578,6 +659,126 @@ const loadEpisode = async () => {
       }
     }
   }
+}
+
+// 获取 AI 设置
+const getAISettings = () => {
+  const saved = localStorage.getItem('app-settings')
+  if (saved) {
+    return JSON.parse(saved)
+  }
+  return {
+    aiProvider: 'deepseek',
+    aiApiKey: '',
+    aiModel: 'deepseek-chat'
+  }
+}
+
+// AI 生成题目
+const generateQuestionsWithAI = async () => {
+  const aiSettings = getAISettings()
+
+  if (!aiSettings.aiApiKey) {
+    alert('请先在设置页面配置 AI API Key')
+    return
+  }
+
+  if (!episode.value.lrc && !episode.value.transcript) {
+    alert('没有找到原文内容，无法生成题目')
+    return
+  }
+
+  generatingQuestions.value = true
+
+  try {
+    const result = await window.api.ai.generateQuestions({
+      provider: aiSettings.aiProvider,
+      apiKey: aiSettings.aiApiKey,
+      model: aiSettings.aiModel,
+      customUrl: aiSettings.customApiUrl,
+      customModel: aiSettings.customModelName,
+      transcript: episode.value.lrc || episode.value.transcript,
+      translation: episode.value.translation,
+      title: episode.value.title
+    })
+
+    if (result.success && result.questions) {
+      questions.value = result.questions
+      // 兼容处理：确保 correctAnswer 与 options 格式一致
+      questions.value = questions.value.map(q => {
+        if (q.options && q.correctAnswer) {
+          if (q.correctAnswer.length <= 2) {
+            const matched = q.options.find(opt => opt.startsWith(q.correctAnswer + '.'))
+            if (matched) {
+              q.correctAnswer = matched
+            }
+          }
+        }
+        return q
+      })
+      // 保存到数据库
+      await window.api.episodes.updateQuestions(episode.value.id, JSON.stringify(questions.value))
+      alert(`成功生成 ${questions.value.length} 道题目！`)
+    } else {
+      alert('生成失败：' + (result.error || '未知错误'))
+    }
+  } catch (e) {
+    alert('生成失败：' + e.message)
+  } finally {
+    generatingQuestions.value = false
+  }
+}
+
+// 单词查询
+const onWordClick = async (text) => {
+  // 提取第一个单词
+  const word = text.trim().split(/\s+/)[0].replace(/[^a-zA-Z-]/g, '')
+  if (!word || word.length < 2) return
+
+  const aiSettings = getAISettings()
+  if (!aiSettings.aiApiKey) {
+    alert('请先在设置页面配置 AI API Key')
+    return
+  }
+
+  lookupWord.value = word
+  lookupResult.value = ''
+  wordLookupDialog.value = true
+  lookingUp.value = true
+
+  try {
+    const result = await window.api.ai.lookupWord({
+      provider: aiSettings.aiProvider,
+      apiKey: aiSettings.aiApiKey,
+      model: aiSettings.aiModel,
+      customUrl: aiSettings.customApiUrl,
+      customModel: aiSettings.customModelName,
+      word
+    })
+
+    if (result.success) {
+      lookupResult.value = result.result
+    } else {
+      lookupResult.value = '查询失败：' + result.error
+    }
+  } catch (e) {
+    lookupResult.value = '查询失败：' + e.message
+  } finally {
+    lookingUp.value = false
+  }
+}
+
+const addToVocabulary = async () => {
+  if (!lookupWord.value) return
+
+  await window.api.vocabulary.add({
+    word: lookupWord.value,
+    meaning: lookupResult.value,
+    episodeId: episode.value?.id
+  })
+
+  alert('已添加到生词本')
+  wordLookupDialog.value = false
 }
 
 onMounted(() => {
