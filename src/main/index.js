@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain, dialog, protocol, net } from 'electron'
 import { join, dirname } from 'path'
-import { readFileSync, writeFileSync, existsSync } from 'fs'
+import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from 'fs'
 import { fileURLToPath } from 'url'
 import log from 'electron-log'
 import initSqlJs from 'sql.js'
@@ -602,7 +602,42 @@ ipcMain.handle('dialog:openDirectory', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     properties: ['openDirectory']
   })
-  return result
+  if (result.canceled) return null
+  return result.filePaths[0]
+})
+
+// 扫描文件夹中的音频文件
+ipcMain.handle('folder:scan', async (_, folderPath) => {
+  const audioExtensions = ['.mp3', '.wav', '.m4a', '.flac', '.ogg']
+  const files = []
+
+  try {
+    const entries = readdirSync(folderPath)
+    for (const name of entries) {
+      const fullPath = join(folderPath, name)
+      const stat = statSync(fullPath)
+      if (stat.isFile()) {
+        const ext = name.substring(name.lastIndexOf('.')).toLowerCase()
+        if (audioExtensions.includes(ext)) {
+          files.push({ name, path: fullPath })
+        }
+      }
+    }
+  } catch (e) {
+    log.error('scanFolder error:', e)
+  }
+
+  return files
+})
+
+// 读取文本文件
+ipcMain.handle('file:readText', async (_, filePath) => {
+  try {
+    return readFileSync(filePath, 'utf-8')
+  } catch (e) {
+    log.error('readFileText error:', e)
+    return null
+  }
 })
 
 // 提示对话框

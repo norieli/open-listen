@@ -183,6 +183,53 @@
         </div>
       </div>
     </div>
+
+    <!-- 导入模态框 -->
+    <div v-if="showImportModal" class="modal-overlay" @click.self="showImportModal = false">
+      <div class="modal-content card" style="max-width: 450px; width: 90%;">
+        <h3 class="card-title">导入课程</h3>
+
+        <div class="form-group">
+          <label class="form-label">文件夹路径</label>
+          <div style="word-break: break-all; color: #666; font-size: 12px; padding: 8px; background: #f5f5f5; border-radius: 4px;">
+            {{ importData.folderPath || '未选择' }}
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">选择合集</label>
+          <select class="form-input" v-model="importData.collectionId">
+            <option :value="null">未分类</option>
+            <option v-for="col in collections" :key="col.id" :value="col.id">{{ col.name }}</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">课程标题</label>
+          <input type="text" class="form-input" v-model="importData.title" placeholder="输入课程标题">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">难度</label>
+          <select class="form-input" v-model="importData.difficulty">
+            <option value="elementary">初级</option>
+            <option value="intermediate">中级</option>
+            <option value="upper">中高级</option>
+            <option value="advanced">高级</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">分类</label>
+          <input type="text" class="form-input" v-model="importData.category" placeholder="输入分类">
+        </div>
+
+        <div class="flex gap-10" style="justify-content: flex-end; margin-top: 20px;">
+          <button class="btn btn-secondary" @click="showImportModal = false">取消</button>
+          <button class="btn btn-primary" @click="confirmImport">导入</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -209,6 +256,17 @@ const showMoveModal = ref(false)
 const targetCollectionId = ref(null)
 const movingEpisodeId = ref(null)
 const showManageCollections = ref(false)
+
+// 导入状态
+const showImportModal = ref(false)
+const importData = ref({
+  folderPath: '',
+  folderName: '',
+  title: '',
+  difficulty: 'intermediate',
+  category: 'English Pod',
+  collectionId: null
+})
 
 // 显示当前筛选下的数量
 const episodeCount = computed(() => {
@@ -306,17 +364,76 @@ const toggleFavorite = async (episodeId) => {
   await loadFavorites()
 }
 
-// 导入课程
+// 导入课程 - 打开文件夹选择
 const importEpisode = async () => {
-  const result = await window.api.dialog.openFile({
-    filters: [
-      { name: '音频', extensions: ['mp3', 'wav', 'm4a'] }
-    ]
-  })
-  
-  if (!result.canceled && result.filePaths.length > 0) {
-    // TODO: 打开导入向导
-    alert('导入功能开发中...\n\n请手动在数据库中添加节目，或等待后续版本支持自动导入。')
+  const folderPath = await window.api.dialog.openDirectory()
+  if (!folderPath || typeof folderPath !== 'string') return
+
+  // 获取文件夹名称作为默认标题
+  const folderName = folderPath.split(/[\\/]/).pop()
+
+  // 初始化导入数据
+  importData.value = {
+    folderPath,
+    folderName,
+    title: folderName,
+    difficulty: 'intermediate',
+    category: 'English Pod',
+    collectionId: null
+  }
+
+  showImportModal.value = true
+}
+
+// 确认导入
+const confirmImport = async () => {
+  if (!importData.value.title) {
+    alert('请输入课程标题')
+    return
+  }
+
+  showImportModal.value = false
+
+  try {
+    const files = await window.api.scanFolder(importData.value.folderPath)
+
+    if (files.length === 0) {
+      alert('文件夹中没有找到音频文件')
+      return
+    }
+
+    let importedCount = 0
+
+    for (const file of files) {
+      const fileName = file.name.replace(/\.[^/.]+$/, '')
+      const episodeTitle = files.length > 1 ? `${importData.value.title} - ${fileName}` : importData.value.title
+
+      const lrcFile = files.find(f => f.name === file.name.replace(/\.[^/.]+$/, '.lrc'))
+      const lrcContent = lrcFile ? await window.api.readFileText(lrcFile.path) : null
+
+      const transFile = files.find(f => f.name === file.name.replace(/\.[^/.]+$/, '.txt'))
+      const translation = transFile ? await window.api.readFileText(transFile.path) : null
+
+      await window.api.episodes.add({
+        id: Date.now() + Math.random().toString(36).substr(2, 9),
+        title: episodeTitle,
+        difficulty: importData.value.difficulty,
+        category: importData.value.category || 'English Pod',
+        audioPath: 'file:///' + file.path.replace(/\\/g, '/'),
+        lrc: lrcContent,
+        translation: translation,
+        transcript: '',
+        questions: '[]',
+        collectionId: importData.value.collectionId
+      })
+
+      importedCount++
+    }
+
+    await loadEpisodes()
+    alert(`导入成功！共导入 ${importedCount} 个课程。`)
+  } catch (e) {
+    alert('导入失败：' + e.message)
   }
 }
 

@@ -63,6 +63,12 @@ contextBridge.exposeInMainWorld('api', {
   // 读取文件为Base64
   readFileAsBase64: (filePath) => ipcRenderer.invoke('file:readAsBase64', filePath),
 
+  // 读取文本文件
+  readFileText: (filePath) => ipcRenderer.invoke('file:readText', filePath),
+
+  // 扫描文件夹
+  scanFolder: (folderPath) => ipcRenderer.invoke('folder:scan', folderPath),
+
   // 数据库管理
   database: {
     backup: () => ipcRenderer.invoke('database:backup'),
