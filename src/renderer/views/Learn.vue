@@ -12,73 +12,7 @@
     </nav>
 
     <!-- 学习页面主体 -->
-    <main class="container" style="padding: 20px;" v-if="episode">
-      <!-- 音频播放器 -->
-      <div class="audio-player">
-        <div class="audio-controls">
-          <button class="play-btn" @click="togglePlay">
-            {{ isPlaying ? '⏸' : '▶' }}
-          </button>
-          
-          <div class="progress-bar" @click="seekAudio">
-            <div class="progress" :style="{ width: progressPercent + '%' }"></div>
-          </div>
-          
-          <div class="time-display">
-            {{ formatTime(currentTime) }} / {{ formatTime(duration) }}
-          </div>
-          
-          <div class="speed-control">
-            <button
-              v-for="speed in speeds"
-              :key="speed"
-              class="speed-btn"
-              :class="{ active: playbackRate === speed }"
-              @click="setSpeed(speed)"
-            >
-              {{ speed }}x
-            </button>
-          </div>
-
-          <!-- 循环控制 -->
-          <div class="loop-control">
-            <button
-              class="loop-btn"
-              :class="{ active: isLooping }"
-              @click="toggleLoop"
-              title="单句循环"
-            >
-              🔂
-            </button>
-            <button
-              v-if="isLooping"
-              class="loop-btn"
-              @click="setLoopStart"
-              :class="{ active: loopStart !== null }"
-              title="设置循环起点"
-            >
-              A
-            </button>
-            <button
-              v-if="isLooping && loopStart !== null"
-              class="loop-btn"
-              @click="setLoopEnd"
-              :class="{ active: loopEnd !== null }"
-              title="设置循环终点"
-            >
-              B
-            </button>
-            <button
-              v-if="isLooping"
-              class="loop-btn"
-              @click="clearLoop"
-              title="清除循环"
-            >
-              ✕
-            </button>
-          </div>
-        </div>
-      </div>
+    <main class="container learn-main" v-if="episode">
 
       <!-- 标签页 -->
       <div class="tabs">
@@ -105,36 +39,30 @@
         </div>
       </div>
 
-      <!-- 听 - 听力模式 -->
+      <!-- 听 - 专注模式 -->
       <div v-show="activeTab === 'listen'" class="tab-content">
-        <div class="card">
-          <h3 class="card-title">🎧 听力练习</h3>
-          <p style="color: #666; margin-bottom: 20px;">
-            点击播放按钮开始盲听，不要看原文哦~
-          </p>
-          <div class="text-center">
-            <button class="btn btn-primary" style="font-size: 18px; padding: 15px 40px;" @click="startListening">
-              {{ hasListened ? '🔊 重新听' : '🎧 开始听' }}
-            </button>
+        <div class="card" style="text-align: center; padding: 40px;">
+          <div v-if="isPlaying" class="focus-mode">
+            <div class="pulse-circle"></div>
+            <h2 style="margin: 20px 0; font-size: 28px;">{{ transcriptLines[currentLineIndex]?.text || '...' }}</h2>
+            <p style="color: #666;">点击底部播放控件控制播放</p>
           </div>
-          <div v-if="hasListened" style="margin-top: 20px; text-align: center;">
-            <button class="btn btn-success" @click="activeTab = 'read'">
-              去读原文 →
-            </button>
+          <div v-else>
+            <div style="font-size: 48px; margin-bottom: 20px;">🎧</div>
+            <p style="color: #666; margin-bottom: 20px;">
+              点击底部播放按钮开始听
+            </p>
           </div>
         </div>
       </div>
 
       <!-- 读 - 原文 -->
       <div v-show="activeTab === 'read'" class="tab-content">
-        <div class="transcript">
-          <div v-if="currentLineIndex >= 0" style="margin-bottom: 20px; padding: 15px; background: #5d5d5d; border-radius: 8px; color: #fff;">
-            <strong>当前播放：</strong>{{ transcriptLines[currentLineIndex]?.text }}
-          </div>
-          
+        <div class="transcript" ref="transcriptContainer" style="flex: 1; overflow-y: auto;">
           <p
             v-for="(line, index) in transcriptLines"
             :key="index"
+            :ref="el => { if (el) transcriptRefs[index] = el }"
             :class="{ current: currentLineIndex === index }"
             @click="playFromLine(index)"
             @dblclick="onWordClick($event, line.text)"
@@ -300,6 +228,7 @@ const currentTime = ref(0)
 const duration = ref(0)
 const playbackRate = ref(1)
 const speeds = [0.5, 0.75, 1, 1.25, 1.5, 2]
+let syncInterval = null
 
 // 循环播放状态
 const isLooping = ref(false)
@@ -315,6 +244,8 @@ const hasListened = ref(false)
 
 // 原文
 const transcriptLines = ref([])
+const transcriptRefs = ref([])
+const transcriptContainer = ref(null)
 const currentLineIndex = ref(-1)
 
 // 答题
@@ -333,10 +264,16 @@ const lookupWord = ref('')
 const lookupResult = ref('')
 const lookingUp = ref(false)
 
-// 计算属性
+// 从全局播放器获取时间
+const getCurrentTime = () => window.playerBar?.getCurrentTime?.() || 0
+const getDuration = () => window.playerBar?.getDuration?.() || 0
+const getIsPlaying = () => window.playerBar?.getIsPlaying?.() || false
+
+// 计算属性 - 直接从全局播放器读取
 const progressPercent = computed(() => {
-  if (!duration.value) return 0
-  return (currentTime.value / duration.value) * 100
+  const dur = getDuration()
+  if (!dur) return 0
+  return (getCurrentTime() / dur) * 100
 })
 
 const currentQuestion = computed(() => {
@@ -367,18 +304,19 @@ const togglePlay = () => {
 }
 
 const seekAudio = (e) => {
-  if (!audio.value || !duration.value) return
+  if (!duration.value) return
   const rect = e.target.getBoundingClientRect()
   const percent = (e.clientX - rect.left) / rect.width
-  audio.value.seek(percent * duration.value)
-  currentTime.value = percent * duration.value
+  const seekTime = percent * duration.value
+  // 同步到全局播放器
+  window.playerBar?.seekTo(seekTime)
+  currentTime.value = seekTime
 }
 
 const setSpeed = (speed) => {
   playbackRate.value = speed
-  if (audio.value) {
-    audio.value.rate(speed)
-  }
+  // 同步到全局播放器
+  window.playerBar?.setSpeed?.(speed)
 }
 
 // 循环播放控制
@@ -421,15 +359,43 @@ const clearLoop = () => {
 const checkLoop = () => {
   if (isLooping.value && loopStart.value !== null && loopEnd.value !== null) {
     if (currentTime.value >= loopEnd.value) {
-      audio.value.seek(loopStart.value)
+      // Seek via global player
+      window.playerBar?.seekTo(loopStart.value)
       currentTime.value = loopStart.value
+    }
+  }
+}
+
+// 更新当前字幕行 - 直接从全局播放器读取
+const updateCurrentLine = () => {
+  if (transcriptLines.value.length === 0) return
+
+  const time = getCurrentTime()
+
+  // 找到当前时间对应的字幕行
+  let newIndex = -1
+  for (let i = 0; i < transcriptLines.value.length; i++) {
+    if (time >= transcriptLines.value[i].time) {
+      newIndex = i
+    } else {
+      break
+    }
+  }
+
+  if (newIndex !== currentLineIndex.value) {
+    currentLineIndex.value = newIndex
+
+    // 自动滚动到当前行
+    if (newIndex >= 0 && transcriptRefs.value[newIndex]) {
+      const el = transcriptRefs.value[newIndex]
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
     }
   }
 }
 
 const startListening = () => {
   hasListened.value = true
-  togglePlay() // Use unified togglePlay
+  window.playerBar?.togglePlay?.()
   updateStatus('listening')
 }
 
@@ -454,11 +420,12 @@ const parseLRC = (lrcText) => {
 
 const playFromLine = (index) => {
   currentLineIndex.value = index
-  if (audio.value && transcriptLines.value[index]) {
-    audio.value.seek(transcriptLines.value[index].time)
-    currentTime.value = transcriptLines.value[index].time
+  if (transcriptLines.value[index]) {
+    const seekTime = transcriptLines.value[index].time
+    window.playerBar?.seekTo(seekTime)
+    currentTime.value = seekTime
     if (!isPlaying.value) {
-      togglePlay()
+      window.playerBar?.togglePlay?.()
     }
   }
 }
@@ -547,6 +514,16 @@ const loadEpisode = async () => {
   episode.value = await window.api.episodes.getById(id)
 
   if (episode.value) {
+    // 设置全局播放器（如果没有在播放这个节目）
+    const player = window.playerBar
+    const playlist = player?.getPlaylist?.() || []
+    const currentEpisode = playlist[player?.getCurrentIndex?.() || 0]
+
+    if (!currentEpisode || currentEpisode.id !== episode.value.id) {
+      // 将当前节目添加到全局播放器
+      player?.setPlaylist?.([episode.value], 0)
+    }
+
     // 解析LRC歌词
     transcriptLines.value = parseLRC(episode.value.lrc)
 
@@ -807,20 +784,25 @@ const addToVocabulary = async () => {
 
 onMounted(() => {
   loadEpisode()
+  // 简单定时更新字幕
+  syncInterval = setInterval(updateCurrentLine, 250)
 })
 
 onUnmounted(() => {
-  // 保存播放进度
-  if (episode.value && currentTime.value > 0) {
-    window.api.progress.save({
-      episodeId: episode.value.id,
-      status: hasListened.value ? 'reading' : 'listening',
-      audioPosition: currentTime.value,
-      wrongAnswers: []
-    })
+  if (syncInterval) {
+    clearInterval(syncInterval)
   }
-  if (audio.value) {
-    audio.value.unload()
+  // 保存播放进度
+  if (episode.value) {
+    const pos = getCurrentTime()
+    if (pos > 0) {
+      window.api.progress.save({
+        episodeId: episode.value.id,
+        status: hasListened.value ? 'reading' : 'listening',
+        audioPosition: pos,
+        wrongAnswers: []
+      })
+    }
   }
 })
 
@@ -831,3 +813,54 @@ watch(activeTab, (newTab) => {
   }
 })
 </script>
+
+<style scoped>
+/* 学习页面布局 - 只有字幕区域滚动 */
+.learn-main {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 60px - 60px);
+  padding: 20px;
+  overflow: hidden;
+}
+
+.learn-main .tab-content {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 专注模式动画 */
+.pulse-circle {
+  width: 60px;
+  height: 60px;
+  background: #667eea;
+  border-radius: 50%;
+  margin: 0 auto;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(0.8);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(0.8);
+    opacity: 1;
+  }
+}
+
+.focus-mode h2 {
+  color: #333;
+}
+
+body.theme-dark .focus-mode h2 {
+  color: #e0e0e0;
+}
+</style>

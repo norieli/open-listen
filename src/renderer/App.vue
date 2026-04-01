@@ -1,13 +1,19 @@
 <template>
   <div id="app" :class="{ 'is-mobile': isMobile }">
     <router-view />
+    <PlayerBar ref="playerBar" />
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import PlayerBar from './components/PlayerBar.vue'
 
 const isMobile = ref(false)
+const playerBar = ref(null)
+
+// 提供播放器访问
+const getPlayerBar = () => playerBar.value
 
 onMounted(() => {
   // 检测设备类型
@@ -17,12 +23,27 @@ onMounted(() => {
   checkMobile()
   window.addEventListener('resize', checkMobile)
 })
+
+// 暴露给全局
+window.playerBar = {
+  setPlaylist: (episodes, index) => playerBar.value?.setPlaylist(episodes, index),
+  getPlaylist: () => playerBar.value?.getPlaylist(),
+  getCurrentIndex: () => playerBar.value?.getCurrentIndex(),
+  getCurrentTime: () => playerBar.value?.getCurrentTime(),
+  getDuration: () => playerBar.value?.getDuration(),
+  getIsPlaying: () => playerBar.value?.getIsPlaying(),
+  getPlaybackRate: () => playerBar.value?.getPlaybackRate(),
+  seekTo: (time) => playerBar.value?.seekTo(time),
+  togglePlay: () => playerBar.value?.togglePlay(),
+  setSpeed: (speed) => playerBar.value?.setSpeed(speed)
+}
 </script>
 
 <style>
 #app {
   min-height: 100vh;
   background: #f5f7fa;
+  padding-bottom: 70px;
 }
 
 body.theme-dark #app {

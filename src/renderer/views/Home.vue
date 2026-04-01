@@ -87,7 +87,8 @@
           v-for="episode in filteredEpisodes" 
           :key="episode.id"
           class="episode-item"
-          @click="goToLearn(episode.id)"
+          @click="playEpisode(episode)"
+          @dblclick="goToLearn(episode.id)"
         >
           <div class="episode-info">
             <h3>{{ episode.title }}</h3>
@@ -105,8 +106,14 @@
             </div>
           </div>
           <div class="episode-actions">
+            <button class="btn btn-secondary" style="padding: 8px 12px; font-size: 16px;" @click.stop="goToLearn(episode.id)" title="学习">
+              📖
+            </button>
             <button class="btn btn-secondary" style="padding: 8px 12px; font-size: 16px;" @click.stop="showMoveDialog(episode.id)" title="移动到合集">
               📁
+            </button>
+            <button class="btn btn-secondary" style="padding: 8px 12px; font-size: 16px;" @click.stop="playEpisode(episode)" title="播放">
+              ▶️
             </button>
             <button class="btn btn-secondary" style="padding: 8px 12px; font-size: 16px;" @click.stop="toggleFavorite(episode.id)">
               {{ isFavorite(episode.id) ? '❤️' : '🤍' }}
@@ -282,6 +289,12 @@ const isFavorite = (episodeId) => {
 
 const goToLearn = (id) => {
   router.push(`/learn/${id}`)
+}
+
+// 播放音频
+const playEpisode = (episode) => {
+  const index = filteredEpisodes.value.findIndex(e => e.id === episode.id)
+  window.playerBar?.setPlaylist(filteredEpisodes.value, index >= 0 ? index : 0)
 }
 
 const toggleFavorite = async (episodeId) => {
