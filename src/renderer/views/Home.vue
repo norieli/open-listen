@@ -5,7 +5,7 @@
       <div class="container navbar-content">
         <div class="navbar-brand">Open listen AI</div>
         <div class="navbar-menu">
-          <router-link to="/">课程</router-link>
+          <router-link to="/manage">管理</router-link>
           <router-link to="/wrong-answers">错题本</router-link>
           <router-link to="/vocabulary">生词本</router-link>
           <router-link to="/favorites">收藏</router-link>
@@ -108,9 +108,6 @@
           <div class="episode-actions">
             <button class="btn btn-secondary" style="padding: 8px 12px; font-size: 16px;" @click.stop="goToLearn(episode.id)" title="学习">
               📖
-            </button>
-            <button class="btn btn-secondary" style="padding: 8px 12px; font-size: 16px;" @click.stop="showMoveDialog(episode.id)" title="移动到合集">
-              📁
             </button>
             <button class="btn btn-secondary" style="padding: 8px 12px; font-size: 16px;" @click.stop="playEpisode(episode)" title="播放">
               ▶️
@@ -362,6 +359,21 @@ const toggleFavorite = async (episodeId) => {
     await window.api.favorites.add(episodeId)
   }
   await loadFavorites()
+}
+
+// 删除课程
+const deleteEpisode = async (episode) => {
+  const confirmed = confirm(`确定要删除 "${episode.title}" 吗？\n\n此操作仅从数据库移除记录，不会删除原始音频文件。`)
+  if (!confirmed) return
+
+  try {
+    await window.api.episodes.delete(episode.id)
+    await loadEpisodes()
+    await loadStats()
+    alert('删除成功')
+  } catch (e) {
+    alert('删除失败：' + e.message)
+  }
 }
 
 // 导入课程 - 打开文件夹选择

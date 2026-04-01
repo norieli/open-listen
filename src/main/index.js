@@ -352,8 +352,33 @@ ipcMain.handle('episodes:add', (_, episode) => {
   return { success: true }
 })
 
-ipcMain.handle('episodes:delete', (_, id) => {
+ipcMain.handle('episodes:delete', async (_, id, deleteFile = false) => {
+  // 如果需要删除文件，先获取文件路径
+  if (deleteFile) {
+    const episode = queryOne('SELECT audioPath FROM episodes WHERE id = ?', [id])
+    if (episode && episode.audioPath) {
+      const filePath = episode.audioPath.replace('file:///', '').replace(/\//g, '\\')
+      try {
+        if (existsSync(filePath)) {
+          const { unlinkSync } = await import('fs')
+          unlinkSync(filePath)
+          log.info('Deleted file:', filePath)
+        }
+      } catch (e) {
+        log.error('Failed to delete file:', e)
+      }
+    }
+  }
+
+  // 删除进度记录
+  runSql('DELETE FROM user_progress WHERE episodeId = ?', [id])
+  // 删除收藏记录
+  runSql('DELETE FROM favorites WHERE episodeId = ?', [id])
+  // 删除错题记录
+  runSql('DELETE FROM wrong_answers WHERE episodeId = ?', [id])
+  // 删除节目
   runSql('DELETE FROM episodes WHERE id = ?', [id])
+
   return { success: true }
 })
 
