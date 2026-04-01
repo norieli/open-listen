@@ -87,6 +87,31 @@
       </button>
     </div>
 
+    <!-- 定时关闭 -->
+    <div class="sleep-timer">
+      <button
+        class="sleep-timer-btn"
+        :class="{ active: sleepTimerSeconds > 0 }"
+        @click="sleepTimerSeconds > 0 ? cancelSleepTimer() : showTimerMenu = !showTimerMenu"
+        title="定时关闭"
+      >
+        ⏰ {{ sleepTimerRemaining || '定时' }}
+      </button>
+      <div v-if="showTimerMenu" class="sleep-timer-menu">
+        <div
+          v-for="min in sleepTimerOptions"
+          :key="min"
+          class="sleep-timer-option"
+          @click="setSleepTimer(min); showTimerMenu = false"
+        >
+          {{ min }}分钟
+        </div>
+        <div v-if="sleepTimerSeconds > 0" class="sleep-timer-option cancel" @click="cancelSleepTimer(); showTimerMenu = false">
+          取消定时
+        </div>
+      </div>
+    </div>
+
     <!-- 播放列表 -->
     <div v-if="showPlaylist" class="playlist-overlay" @click.self="showPlaylist = false">
       <div class="playlist-panel">
@@ -127,6 +152,7 @@ const isPlaying = ref(false)
 const currentTime = ref(0)
 const duration = ref(0)
 const showPlaylist = ref(false)
+const showTimerMenu = ref(false)
 const playbackRate = ref(1)
 const speeds = [0.5, 0.75, 1, 1.25, 1.5, 2]
 
@@ -134,6 +160,47 @@ const speeds = [0.5, 0.75, 1, 1.25, 1.5, 2]
 const isLooping = ref(false)
 const loopStart = ref(null)
 const loopEnd = ref(null)
+
+// 定时关闭
+const sleepTimerSeconds = ref(0)
+const sleepTimerOptions = [5, 10, 15, 30, 45, 60]
+let sleepTimerInterval = null
+
+const sleepTimerRemaining = computed(() => {
+  if (sleepTimerSeconds.value <= 0) return ''
+  const mins = Math.floor(sleepTimerSeconds.value / 60)
+  const secs = sleepTimerSeconds.value % 60
+  return `${mins}:${secs.toString().padStart(2, '0')}`
+})
+
+const setSleepTimer = (minutes) => {
+  sleepTimerSeconds.value = minutes * 60
+  if (sleepTimerInterval) {
+    clearInterval(sleepTimerInterval)
+  }
+  if (minutes > 0) {
+    sleepTimerInterval = setInterval(() => {
+      sleepTimerSeconds.value--
+      if (sleepTimerSeconds.value <= 0) {
+        clearInterval(sleepTimerInterval)
+        // 停止播放
+        if (audio) {
+          audio.pause()
+        }
+        isPlaying.value = false
+        sleepTimerSeconds.value = 0
+      }
+    }, 1000) // 每秒检查一次
+  }
+}
+
+const cancelSleepTimer = () => {
+  sleepTimerSeconds.value = 0
+  if (sleepTimerInterval) {
+    clearInterval(sleepTimerInterval)
+    sleepTimerInterval = null
+  }
+}
 
 let audio = null
 
@@ -533,6 +600,73 @@ body.theme-dark .loop-btn:hover {
 .loop-btn.active {
   background: #667eea;
   color: #fff;
+}
+
+/* 定时关闭 */
+.sleep-timer {
+  position: relative;
+}
+
+.sleep-timer-btn {
+  background: #f0f0f0;
+  border: none;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  cursor: pointer;
+  color: #666;
+}
+
+body.theme-dark .sleep-timer-btn {
+  background: #333;
+  color: #aaa;
+}
+
+.sleep-timer-btn.active {
+  background: #f59e0b;
+  color: #fff;
+}
+
+.sleep-timer-menu {
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 8px 0;
+  min-width: 100px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  z-index: 200;
+  margin-bottom: 8px;
+}
+
+body.theme-dark .sleep-timer-menu {
+  background: #1e1e1e;
+  border-color: #333;
+}
+
+.sleep-timer-option {
+  padding: 8px 16px;
+  cursor: pointer;
+  text-align: center;
+}
+
+.sleep-timer-option:hover {
+  background: #f5f5f5;
+}
+
+body.theme-dark .sleep-timer-option:hover {
+  background: #333;
+}
+
+.sleep-timer-option.cancel {
+  color: #ef4444;
+  border-top: 1px solid #eee;
+}
+
+body.theme-dark .sleep-timer-option.cancel {
+  border-top-color: #333;
 }
 
 /* 播放列表 */
