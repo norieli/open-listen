@@ -62,6 +62,17 @@ async function initDatabase() {
       translation TEXT,
       lrc TEXT,
       questions TEXT,
+      collectionId TEXT,
+      createdAt INTEGER DEFAULT (strftime('%s', 'now'))
+    )
+  `)
+
+  // 合集表
+  db.run(`
+    CREATE TABLE IF NOT EXISTS collections (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
       createdAt INTEGER DEFAULT (strftime('%s', 'now'))
     )
   `)
@@ -134,6 +145,23 @@ async function initDatabase() {
 
 // 数据库迁移 - 添加新字段
 function migrateDatabase() {
+  try {
+    // 为 episodes 添加合集字段
+    db.run('ALTER TABLE episodes ADD COLUMN collectionId TEXT')
+  } catch (e) {}
+
+  try {
+    // 创建 collections 表
+    db.run(`
+      CREATE TABLE IF NOT EXISTS collections (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        createdAt INTEGER DEFAULT (strftime('%s', 'now'))
+      )
+    `)
+  } catch (e) {}
+
   try {
     // 为 wrong_answers 添加间隔重复字段
     db.run('ALTER TABLE wrong_answers ADD COLUMN isMastered INTEGER DEFAULT 0')
@@ -333,6 +361,37 @@ ipcMain.handle('episodes:delete', (_, id) => {
 ipcMain.handle('episodes:updateQuestions', (_, data) => {
   const { id, questions } = data
   runSql('UPDATE episodes SET questions = ? WHERE id = ?', [questions, id])
+  return { success: true }
+})
+
+// 更新节目的合集
+ipcMain.handle('episodes:updateCollection', (_, data) => {
+  const { id, collectionId } = data
+  runSql('UPDATE episodes SET collectionId = ? WHERE id = ?', [collectionId, id])
+  return { success: true }
+})
+
+// 合集管理
+ipcMain.handle('collections:getAll', () => {
+  return queryAll('SELECT * FROM collections ORDER BY createdAt DESC')
+})
+
+ipcMain.handle('collections:add', (_, data) => {
+  const id = 'col_' + Date.now()
+  runSql('INSERT INTO collections (id, name, description) VALUES (?, ?, ?)', [id, data.name, data.description || ''])
+  return { success: true, id }
+})
+
+ipcMain.handle('collections:delete', (_, id) => {
+  // 删除合集时，将该合集下的节目设为无合集
+  runSql('UPDATE episodes SET collectionId = NULL WHERE collectionId = ?', [id])
+  runSql('DELETE FROM collections WHERE id = ?', [id])
+  return { success: true }
+})
+
+ipcMain.handle('collections:update', (_, data) => {
+  const { id, name, description } = data
+  runSql('UPDATE collections SET name = ?, description = ? WHERE id = ?', [name, description || '', id])
   return { success: true }
 })
 
@@ -544,6 +603,32 @@ ipcMain.handle('dialog:openDirectory', async () => {
     properties: ['openDirectory']
   })
   return result
+})
+
+// 提示对话框
+ipcMain.handle('dialog:prompt', async (_, options) => {
+  const { title, message, defaultValue } = options
+  const result = await dialog.showMessageBox(mainWindow, {
+    type: 'question',
+    buttons: ['取消', '确定'],
+    title: title || '输入',
+    message: message,
+    detail: defaultValue
+  })
+  // 这里不能真正获取用户输入，改用简单的确认框
+  return { confirmed: result.response === 1 }
+})
+
+// 确认对话框
+ipcMain.handle('dialog:confirm', async (_, options) => {
+  const { title, message } = options
+  const result = await dialog.showMessageBox(mainWindow, {
+    type: 'question',
+    buttons: ['取消', '确定'],
+    title: title || '确认',
+    message: message
+  })
+  return result.response === 1
 })
 
 // 读取文件为Base64

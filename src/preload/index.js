@@ -8,7 +8,16 @@ contextBridge.exposeInMainWorld('api', {
     getById: (id) => ipcRenderer.invoke('episodes:getById', id),
     add: (episode) => ipcRenderer.invoke('episodes:add', episode),
     delete: (id) => ipcRenderer.invoke('episodes:delete', id),
-    updateQuestions: (id, questions) => ipcRenderer.invoke('episodes:updateQuestions', { id, questions })
+    updateQuestions: (id, questions) => ipcRenderer.invoke('episodes:updateQuestions', { id, questions }),
+    updateCollection: (id, collectionId) => ipcRenderer.invoke('episodes:updateCollection', { id, collectionId })
+  },
+
+  // 合集管理
+  collections: {
+    getAll: () => ipcRenderer.invoke('collections:getAll'),
+    add: (data) => ipcRenderer.invoke('collections:add', data),
+    delete: (id) => ipcRenderer.invoke('collections:delete', id),
+    update: (data) => ipcRenderer.invoke('collections:update', data)
   },
 
   // 用户进度
@@ -46,7 +55,9 @@ contextBridge.exposeInMainWorld('api', {
   // 文件对话框
   dialog: {
     openFile: (options) => ipcRenderer.invoke('dialog:openFile', options),
-    openDirectory: () => ipcRenderer.invoke('dialog:openDirectory')
+    openDirectory: () => ipcRenderer.invoke('dialog:openDirectory'),
+    prompt: (options) => ipcRenderer.invoke('dialog:prompt', options),
+    confirm: (options) => ipcRenderer.invoke('dialog:confirm', options)
   },
 
   // 读取文件为Base64
