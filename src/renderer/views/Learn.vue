@@ -137,7 +137,7 @@
             :key="index"
             :class="{ current: currentLineIndex === index }"
             @click="playFromLine(index)"
-            @dblclick="onWordClick(line.text)"
+            @dblclick="onWordClick($event, line.text)"
           >
             <span style="color: #999; margin-right: 10px;">{{ index + 1 }}</span>
             {{ line.text }}
@@ -730,9 +730,33 @@ const generateQuestionsWithAI = async () => {
 }
 
 // 单词查询
-const onWordClick = async (text) => {
-  // 提取第一个单词
-  const word = text.trim().split(/\s+/)[0].replace(/[^a-zA-Z-]/g, '')
+const onWordClick = async (event, text) => {
+  // 从点击位置提取单词
+  const selection = window.getSelection()
+  const selectedText = selection.toString().trim()
+
+  let word = ''
+  if (selectedText && selectedText.length >= 2) {
+    // 使用用户选中的词
+    word = selectedText.replace(/[^a-zA-Z-]/g, '')
+  } else {
+    // 如果没有选中文本，提取点击位置的词
+    const range = document.caretRangeFromPoint(event.clientX, event.clientY)
+    if (range) {
+      const textNode = range.startContainer
+      if (textNode.nodeType === Node.TEXT_NODE) {
+        const textContent = textNode.textContent
+        const offset = range.startOffset
+        // 向前向后找单词边界
+        let start = offset
+        let end = offset
+        while (start > 0 && /[a-zA-Z-]/.test(textContent[start - 1])) start--
+        while (end < textContent.length && /[a-zA-Z-]/.test(textContent[end])) end++
+        word = textContent.substring(start, end)
+      }
+    }
+  }
+
   if (!word || word.length < 2) return
 
   const aiSettings = getAISettings()

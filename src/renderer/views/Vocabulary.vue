@@ -90,16 +90,14 @@
 
       <!-- 单词列表 -->
       <div v-else-if="filteredVocabularies.length > 0">
-        <div v-for="item in filteredVocabularies" :key="item.id" class="card flex" style="justify-content: space-between; align-items: center;">
-          <div>
-            <div style="font-size: 18px; font-weight: 600;">{{ item.word }}</div>
-            <div style="color: #666; white-space: pre-wrap;">{{ item.meaning }}</div>
-            <div v-if="item.nextReviewTime" style="font-size: 12px; color: #999; margin-top: 5px;">
-              下次复习：{{ formatNextReview(item.nextReviewTime) }}
-              <span v-if="item.isMastered" style="color: #4caf50; margin-left: 10px;">✓ 已掌握</span>
-            </div>
+        <div v-for="item in filteredVocabularies" :key="item.id" class="card" style="margin-bottom: 15px;">
+          <div style="font-size: 20px; font-weight: 600; color: #667eea;">{{ item.word }}</div>
+          <div style="margin-top: 10px; color: #333; line-height: 1.8; white-space: pre-wrap;">{{ formatMeaning(item.meaning) }}</div>
+          <div v-if="item.nextReviewTime" style="font-size: 12px; color: #999; margin-top: 10px;">
+            下次复习：{{ formatNextReview(item.nextReviewTime) }}
+            <span v-if="item.isMastered" style="color: #4caf50; margin-left: 10px;">✓ 已掌握</span>
           </div>
-          <div class="flex gap-10">
+          <div style="margin-top: 10px; text-align: right;">
             <button class="btn btn-secondary" style="padding: 5px 10px;" @click="deleteVocab(item.id)">
               删除
             </button>
@@ -149,6 +147,16 @@ const formatNextReview = (timestamp) => {
   if (days === 0) return '今天'
   if (days === 1) return '明天'
   return `${days}天后`
+}
+
+// 格式化释义内容
+const formatMeaning = (meaning) => {
+  if (!meaning) return ''
+  // 简单格式化：将常见标记替换为更友好的显示
+  return meaning
+    .replace(/^\d+\.\s*/gm, '') // 移除数字编号
+    .replace(/\*\*(.*?)\*\*/g, '$1') // 移除加粗标记
+    .trim()
 }
 
 const loadVocabularies = async () => {

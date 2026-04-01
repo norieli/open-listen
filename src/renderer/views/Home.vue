@@ -100,7 +100,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onActivated } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
@@ -210,6 +210,11 @@ onMounted(async () => {
   await loadEpisodes()
   await loadFavorites()
   await loadProgress()
+  await loadStats()
+})
+
+// 每次进入首页时刷新统计数据
+onActivated(async () => {
   await loadStats()
 })
 

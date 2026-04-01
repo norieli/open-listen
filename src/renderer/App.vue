@@ -368,6 +368,11 @@ body.theme-dark .import-section {
   border-color: #333;
 }
 
+/* 生词本 */
+body.theme-dark .vocab-word {
+  color: #90caf9 !important;
+}
+
 /* 滚动条 */
 body.theme-dark ::-webkit-scrollbar {
   width: 8px;
