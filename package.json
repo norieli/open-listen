@@ -13,8 +13,8 @@
     "dist:mac": "electron-builder --mac",
     "dist:linux": "electron-builder --linux",
     "android:sync": "npm run build && npx cap sync android",
-    "android:build": "cd android && ./gradlew assembleDebug",
-    "android:release": "cd android && ./gradlew assembleRelease"
+    "android:build": "powershell -Command \"cd android; .\\gradlew.bat assembleDebug\"",
+    "android:release": "powershell -Command \"cd android; .\\gradlew.bat assembleRelease\""
   },
   "author": "Atom",
   "license": "MIT",
