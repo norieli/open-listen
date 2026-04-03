@@ -6,8 +6,5 @@
   "npmClient": "npm",
   "android": {
     "allowMixedContent": true
-  },
-  "server": {
-    "androidScheme": "https"
   }
 }

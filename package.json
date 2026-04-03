@@ -10,18 +10,21 @@
     "pack": "electron-builder --dir",
     "dist": "electron-builder",
     "dist:win": "electron-builder --win",
-    "dist:android": "electron-builder --android"
+    "dist:mac": "electron-builder --mac",
+    "dist:linux": "electron-builder --linux",
+    "android:sync": "npm run build && npx cap sync android",
+    "android:build": "cd android && ./gradlew assembleDebug",
+    "android:release": "cd android && ./gradlew assembleRelease"
   },
   "author": "Atom",
   "license": "MIT",
   "dependencies": {
-    "@capacitor-community/sqlite": "^8.1.0",
-    "@capacitor/android": "^8.3.0",
-    "@capacitor/cli": "^8.3.0",
-    "@capacitor/core": "^8.3.0",
-    "@capacitor/dialog": "^8.0.1",
-    "@capacitor/filesystem": "^8.1.2",
-    "@capacitor/preferences": "^8.0.1",
+    "@capacitor/android": "^5.7.0",
+    "@capacitor/cli": "^5.7.0",
+    "@capacitor/core": "^5.7.0",
+    "@capacitor/dialog": "^5.0.1",
+    "@capacitor/filesystem": "^5.2.1",
+    "@capacitor/preferences": "^5.0.1",
     "electron-log": "^5.1.1",
     "howler": "^2.2.4",
     "pinia": "^2.1.7",
@@ -55,12 +58,6 @@
           ]
         }
       ]
-    },
-    "android": {
-      "target": [
-        "apk"
-      ],
-      "icon": "build/icon.png"
     },
     "nsis": {
       "oneClick": false,

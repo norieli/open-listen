@@ -1,126 +1,104 @@
-# Open Listen AI（开听）
+# Open Listen AI (开听)
+
 一款**完全开源免费**的本地语言听读学习工具，基于 Electron + Vue3 开发，支持自定义音频 + 字幕同步播放，打造「听→读→练→记」完整学习闭环。
 
-![Open Listen 功能示意图](https://placeholder.com/cover.png) <!-- 可替换为实际截图链接 -->
+![home](screenshots/home.png)
+![read](screenshots/read.png)
+![setting](screenshots/setting.png)
+![test](screenshots/test.png)
 
-## ✨ 核心特性
+## 核心特性
+
 - 🎧 **自由导入素材**：支持批量导入文件夹，自动匹配 LRC 字幕和 TXT 翻译
-- 📱 **全局播放器**：底部固定播放条，支持播放列表、速度控制、A-B 循环
+- 📱 **跨平台支持**：Windows、macOS、Linux 桌面端 + Android 移动端
 - 📖 **学习模式**：专注模式 + 原文模式，字幕自动跟随滚动
 - 🚀 **灵活播放控制**：倍速（0.5x–2.0x）、单句循环、AB 复读
-- 📂 **课程管理**：批量移动到合集、批量删除（含音频文件）
+- 📂 **课程管理**：批量移动到合集、批量删除
 - 🤖 **AI 辅助学习**：自备 API Key 即可解锁内容总结、自动生成选择题
 - 📊 **完整学习闭环**：进度自动保存、学习统计、错题本、生词本
 - 💾 **100% 本地运行**：无账号、无云端上传、无广告
 
-## 🛠 技术栈
+## 技术栈
+
 - **核心框架**：Electron + Vue3 + Vite
 - **状态管理**：Pinia
 - **本地数据库**：SQLite (sql.js)
 - **音频播放**：Howler.js
+- **移动端**：Capacitor
 - **打包工具**：electron-vite + electron-builder
 
-## 🚀 快速开始
-### 开发环境
+## 快速开始
+
+### 安装依赖
+
 ```bash
-# 克隆仓库
-git clone https://github.com/norie/open-listen.git
-cd open-listen
-
-# 安装依赖
 npm install
-
-# 启动开发模式
-npm run dev
-
-# 打包构建
-npm run dist      # 打包所有平台
-npm run dist:win  # 仅打包 Windows
-npm run dist:mac  # 仅打包 macOS
-npm run dist:an  # 仅打包 Android
-
 ```
 
-### 使用流程
-1. **准备素材**：收集需要学习的音频文件
-2. **导入字幕**：
-   - 手动下载 SRT/LRC/VTT 字幕文件
-   - 或使用「开听·字幕批量工具」（付费）一键生成
-3. **开始学习**：导入音频+字幕，逐句听读、跟读、复读
-4. **AI 辅助**（可选）：在设置中配置 API Key，生成学习总结和练习题
-5. **巩固复习**：查看学习统计、重做错题、复习生词本
+### 开发模式
 
-## 📂 项目结构
+```bash
+# 启动 Electron 开发
+npm run dev
+```
+
+### 打包发布
+
+```bash
+# 桌面端打包
+npm run dist          # 打包所有平台
+npm run dist:win      # 仅打包 Windows
+npm run dist:mac      # 仅打包 macOS
+npm run dist:linux   # 仅打包 Linux
+
+# Android 打包
+npm run android:sync    # 构建前端并同步到 Android
+npm run android:build   # 打包 Debug APK
+npm run android:release # 打包 Release APK
+```
+
+APK 输出位置：`android/app/build/outputs/apk/debug/app-debug.apk`
+
+## 项目结构
+
 ```
 open-listen/
 ├── src/
-│   ├── main/           # Electron 主进程（窗口/权限/数据库）
-│   ├── preload/        # 预加载脚本（主渲染进程通信）
-│   ├── renderer/       # Vue3 前端页面
-│   │   ├── views/      # 核心页面（课程/管理/学习/错题/生词/收藏/设置）
-│   │   ├── components/ # 通用组件（全局播放器/字幕/卡片）
-│   │   ├── assets/     # 样式/图标/静态资源
-│   │   └── router/     # 前端路由
-│   └── database/       # SQLite 脚本（数据存储/导入导出）
-├── build/              # 打包配置
-└── package.json        # 依赖与脚本
+│   ├── main/           # Electron 主进程
+│   ├── preload/       # 预加载脚本
+│   └── renderer/      # Vue3 前端
+│       ├── views/     # 页面组件
+│       ├── components/# 通用组件
+│       ├── assets/    # 样式资源
+│       └── router/    # 路由配置
+├── android/           # Android 原生项目
+├── dist/              # 构建输出
+└── package.json       # 项目配置
 ```
 
-## 📝 数据导入
-### 手动添加节目
-支持直接在数据库中添加学习素材，节目数据结构如下：
+## 数据结构
+
+课程节目 JSON 结构：
 ```json
 {
   "id": "ep001",
   "title": "日常对话 - 购物",
-  "difficulty": "elementary", // elementary/intermediate/upper/advanced
+  "difficulty": "elementary",
   "category": "日常对话",
-  "audioPath": "/path/to/audio.mp3", // 本地音频路径
+  "audioPath": "/path/to/audio.mp3",
   "transcript": "原文文本内容",
-  "translation": "中文译文（可选）",
-  "lrc": "[00:00.00] Hello World\n[00:02.50] This is a test", // LRC 字幕内容
-  "questions": "[{\"id\":1,\"title\":\"What is the topic?\",\"options\":[\"A.Shopping\",\"B.Work\"],\"answer\":\"A\"}]" // 选择题 JSON
+  "translation": "中文译文",
+  "lrc": "[00:00.00] Hello World",
+  "questions": "[]"
 }
 ```
 
-### 批量导入
-支持通过文件夹批量导入（音频+同名字幕自动匹配），具体操作见「使用文档」。
+## 注意事项
 
-## 🤝 与配套工具的关系
-- **Open Listen（主APP）**：永久开源免费，专注学习体验，无任何功能阉割
-- **开听·字幕批量工具**：付费制，提供本地离线音频转字幕能力，解决「找字幕难」问题
-  - 两者为互补关系，主APP不强制绑定付费工具，免费用户可自行准备字幕
-
-## 🎨 界面功能结构
-### 主界面布局
-```
-┌─────────────────────────────────────────────────────────┐
-│ 左侧：课程列表/学习集  │ 顶部：播放控制栏（播放/倍速/进度） │
-│                       │ 中间：字幕同步区 + 原文对照区    │
-│                       │ 右侧：AI总结 + 练习题区域        │
-│                       │ 底部：学习统计 + 生词/错题本入口  │
-└─────────────────────────────────────────────────────────┘
-```
-
-### 核心功能模块
-1. **课程管理**：新建学习集、导入音频+字幕、按章节排序
-2. **播放控制**：倍速、单句循环、AB复读、点击句子跳转
-3. **听读学习**：字幕高亮、原文对照、单词点击释义
-4. **AI辅助**：内容总结、自动出题、即时判分（自备API Key）
-5. **学习数据**：进度保存、时长统计、正确率分析
-6. **巩固工具**：错题本（重做/筛选）、生词本（收藏/标记掌握）
-7. **设置**：API Key配置、主题/字体、数据路径、备份恢复
-
-## 📄 开源协议
-本项目基于 MIT 协议开源，你可自由使用、修改、分发，无需商业授权。
-
-## ❗ 注意事项
-1. AI 辅助功能需用户自备 API Key，开发者不提供接口服务，不承担 Token 费用
+1. AI 辅助功能需用户自备 API Key，开发者不提供接口服务
 2. 所有学习数据均存储在本地，开发者不收集、不上传任何用户数据
-3. 禁止将本项目用于商业侵权场景（如未经授权的音频素材使用）
+3. 禁止将本项目用于商业侵权场景
 
-## 📞 反馈与贡献
-- 问题反馈：提交 GitHub Issue
-- 功能建议：欢迎提交 Pull Request
-- 文档完善：帮助补充使用教程/多语言说明
-```
+## 开源协议
+
+MIT License - 详见 [LICENSE](LICENSE) 文件
