@@ -1,0 +1,13 @@
+{
+  "appId": "com.openlisten.app",
+  "appName": "OpenListen",
+  "webDir": "dist/renderer",
+  "bundledWebRuntime": false,
+  "npmClient": "npm",
+  "android": {
+    "allowMixedContent": true
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}
