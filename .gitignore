@@ -13,6 +13,7 @@ dist-ssr
 dist-electron-builder
 dist-electron
 electron-output
+release
 
 *.local
 
