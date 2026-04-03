@@ -1,139 +1,68 @@
 <template>
-  <div v-if="currentEpisode" class="player-bar">
-    <!-- 播放信息 -->
-    <div class="player-info" @click="openLearn">
-      <div class="player-cover">🎵</div>
-      <div class="player-title">
-        <div class="title">{{ currentEpisode.title }}</div>
-        <div class="subtitle">{{ currentEpisode.category }}</div>
+  <div v-if="currentEpisode">
+    <!-- 折叠状态：侧边悬浮小按钮 -->
+    <div v-if="!isExpanded" class="player-mini" @click="isExpanded = true">
+      <div class="mini-cover">🎵</div>
+      <div class="mini-play-btn">
+        <svg v-if="isPlaying" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+        <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
       </div>
     </div>
 
-    <!-- 播放控制 -->
-    <div class="player-controls">
-      <button class="control-btn" @click="playPrevious" title="上一首">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
-      </button>
-      <button class="control-btn play-btn" @click="togglePlay">
-        <svg v-if="isPlaying" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
-        <svg v-else width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-      </button>
-      <button class="control-btn" @click="playNext" title="下一首">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
-      </button>
-      <button class="control-btn" @click="showPlaylist = !showPlaylist" title="播放列表">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></svg>
-      </button>
-    </div>
-
-    <!-- 进度条 -->
-    <div class="player-progress" @click="seekProgress">
-      <div class="progress-bar">
-        <div class="progress" :style="{ width: progressPercent + '%' }"></div>
+    <!-- 展开状态：底部全宽播放器 -->
+    <div v-else class="player-bar">
+      <!-- 头部：关闭按钮 + 标题 + 列表按钮 -->
+      <div class="player-header">
+        <button class="close-btn" @click="isExpanded = false" title="收起">✕</button>
+        <div class="player-title-text">{{ currentEpisode.title }}</div>
+        <button class="playlist-btn" @click="showPlaylist = !showPlaylist" title="播放列表">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M4 10h12v2H4zM4 6h12v2H4zM4 14h8v2H4zM14 14v6l5-3z"/></svg>
+        </button>
       </div>
-      <div class="time-display">
-        {{ formatTime(currentTime) }} / {{ formatTime(duration) }}
+
+      <!-- 第一行：播放控制 (3列) -->
+      <div class="player-row1">
+        <button class="control-btn" @click="playPrevious" title="上一首">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+        </button>
+        <button class="control-btn play-btn" @click="togglePlay" title="播放/暂停">
+          <svg v-if="isPlaying" width="32" height="32" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+          <svg v-else width="32" height="32" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        </button>
+        <button class="control-btn" @click="playNext" title="下一首">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+        </button>
       </div>
-    </div>
 
-    <!-- 速度控制 -->
-    <div class="speed-control">
-      <button
-        v-for="speed in speeds"
-        :key="speed"
-        class="speed-btn"
-        :class="{ active: playbackRate === speed }"
-        @click="setSpeed(speed)"
-      >
-        {{ speed }}x
-      </button>
-    </div>
-
-    <!-- 循环控制 -->
-    <div class="loop-control">
-      <button
-        class="loop-btn"
-        :class="{ active: isLooping }"
-        @click="toggleLoop"
-        title="单句循环"
-      >
-        🔂
-      </button>
-      <button
-        v-if="isLooping"
-        class="loop-btn"
-        @click="setLoopStart"
-        :class="{ active: loopStart !== null }"
-        title="设置循环起点"
-      >
-        A
-      </button>
-      <button
-        v-if="isLooping && loopStart !== null"
-        class="loop-btn"
-        @click="setLoopEnd"
-        :class="{ active: loopEnd !== null }"
-        title="设置循环终点"
-      >
-        B
-      </button>
-      <button
-        v-if="isLooping"
-        class="loop-btn"
-        @click="clearLoop"
-        title="清除循环"
-      >
-        ✕
-      </button>
-    </div>
-
-    <!-- 定时关闭 -->
-    <div class="sleep-timer">
-      <button
-        class="sleep-timer-btn"
-        :class="{ active: sleepTimerSeconds > 0 }"
-        @click="sleepTimerSeconds > 0 ? cancelSleepTimer() : showTimerMenu = !showTimerMenu"
-        title="定时关闭"
-      >
-        ⏰ {{ sleepTimerRemaining || '定时' }}
-      </button>
-      <div v-if="showTimerMenu" class="sleep-timer-menu">
-        <div
-          v-for="min in sleepTimerOptions"
-          :key="min"
-          class="sleep-timer-option"
-          @click="setSleepTimer(min); showTimerMenu = false"
-        >
-          {{ min }}分钟
+      <!-- 第二行：进度条 + 速度 + 循环 -->
+      <div class="player-row2">
+        <div class="player-progress" @click="seekProgress">
+          <div class="progress-bar">
+            <div class="progress" :style="{ width: progressPercent + '%' }"></div>
+          </div>
+          <div class="time-display">{{ formatTime(currentTime) }} / {{ formatTime(duration) }}</div>
         </div>
-        <div v-if="sleepTimerSeconds > 0" class="sleep-timer-option cancel" @click="cancelSleepTimer(); showTimerMenu = false">
-          取消定时
+        <div class="speed-loop-btns">
+          <button class="speed-btn" :class="{ active: playbackRate === speed }" v-for="speed in speeds" :key="speed" @click="setSpeed(speed)">{{ speed }}x</button>
+          <button class="loop-btn" :class="{ active: isLooping }" @click="toggleLoop" title="单句循环">🔂</button>
         </div>
       </div>
-    </div>
 
-    <!-- 播放列表 -->
-    <div v-if="showPlaylist" class="playlist-overlay" @click.self="showPlaylist = false">
-      <div class="playlist-panel">
-        <div class="playlist-header">
-          <h3>播放列表</h3>
-          <span style="color: #666;">{{ playlist.length }} 首</span>
-          <button class="btn btn-secondary" style="margin-left: auto;" @click="showPlaylist = false">关闭</button>
-        </div>
-        <div class="playlist-items">
-          <div
-            v-for="(ep, index) in playlist"
-            :key="ep.id"
-            class="playlist-item"
-            :class="{ active: ep.id === currentEpisode.id }"
-            @click="playEpisode(index)"
-          >
-            <span class="playlist-num">{{ index + 1 }}</span>
-            <div class="playlist-info">
-              <div class="playlist-title">{{ ep.title }}</div>
-              <div class="playlist-category">{{ ep.category }}</div>
+      <!-- 播放列表 -->
+      <div v-if="showPlaylist" class="playlist-overlay" @click.self="showPlaylist = false">
+        <div class="playlist-panel">
+          <div class="playlist-header">
+            <span>播放列表 ({{ playlist.length }})</span>
+          </div>
+          <div class="playlist-items">
+            <div class="playlist-item" v-for="(ep, index) in playlist" :key="index" :class="{ active: index === currentIndex }" @click="playEpisode(index)">
+              <span class="playlist-num">{{ index + 1 }}</span>
+              <div class="playlist-info">
+                <div class="playlist-title">{{ ep.title }}</div>
+                <div class="playlist-category">{{ ep.category || '' }}</div>
+              </div>
+              <span v-if="index === currentIndex" class="playing-icon">▶</span>
             </div>
-            <span v-if="ep.id === currentEpisode.id" class="playing-icon">🎵</span>
           </div>
         </div>
       </div>
@@ -160,6 +89,12 @@ const speeds = [0.5, 0.75, 1, 1.25, 1.5, 2]
 const isLooping = ref(false)
 const loopStart = ref(null)
 const loopEnd = ref(null)
+
+// 播放控件展开/折叠状态
+const isExpanded = ref(false)
+const toggleExpand = () => {
+  isExpanded.value = !isExpanded.value
+}
 
 // 定时关闭
 const sleepTimerSeconds = ref(0)
@@ -232,14 +167,27 @@ const setPlaylist = (episodes, startIndex = 0) => {
 
 // 加载并播放
 const loadAndPlay = async (index) => {
+  // 停止当前播放的音频（防止多个同时播放）
   if (audio) {
-    audio.unload()
+    if (window.Capacitor && audio._html5Audio) {
+      audio._html5Audio.pause()
+      audio._html5Audio.src = ''
+    } else if (audio.stop) {
+      audio.stop()
+    }
+    if (audio.unload) {
+      audio.unload()
+    }
+    audio = null
   }
 
   const ep = playlist.value[index]
   if (!ep || !ep.audioPath) return
 
   let audioUrl = ep.audioPath
+  console.log('Audio URL:', audioUrl)
+
+  // Electron 文件协议
   if (audioUrl.startsWith('file://')) {
     const filePath = audioUrl.replace('file:///', '').replace(/\//g, '\\')
     const base64 = await window.api.readFileAsBase64(filePath)
@@ -248,17 +196,89 @@ const loadAndPlay = async (index) => {
     }
   }
 
+  // Capacitor blob URL - 直接使用
+  if (audioUrl.startsWith('blob:')) {
+    console.log('Using blob URL directly')
+  }
+
+  // data URL - 直接使用
+  if (audioUrl.startsWith('data:')) {
+    console.log('Using data URL')
+  }
+
   if (!audioUrl) return
 
+  // 从 URL 中提取文件扩展名
+  let ext = ''
+  if (audioUrl.startsWith('data:')) {
+    // data URL 使用 mp3 作为默认
+    ext = 'mp3'
+  } else {
+    ext = audioUrl.split('.').pop().split('?')[0].toLowerCase()
+  }
+  const format = ext || 'mp3'
+
+  // 清理之前的音频
+  if (audio) {
+    audio.unload()
+  }
+
+  console.log('Loading audio:', audioUrl, 'format:', format)
+
+  // Capacitor/Android 使用原生 Audio 元素
+  if (window.Capacitor) {
+    const audioElement = new Audio()
+    audioElement.src = audioUrl
+    audioElement.preload = 'auto'
+
+    audioElement.onloadedmetadata = () => {
+      console.log('Audio loaded, duration:', audioElement.duration)
+      duration.value = audioElement.duration
+      audioElement.play().catch(e => console.error('Play error:', e))
+      isPlaying.value = true
+    }
+
+    audioElement.onerror = (e) => {
+      console.error('Audio load error:', e, audioElement.error)
+    }
+
+    audioElement.onended = () => {
+      playNext()
+    }
+
+    audioElement.onplay = () => {
+      isPlaying.value = true
+      startTimeUpdate()
+    }
+
+    audioElement.onpause = () => {
+      isPlaying.value = false
+      stopTimeUpdate()
+    }
+
+    // 保存原生 audio 元素引用
+    audio = { _html5Audio: audioElement }
+    return
+  }
+
+  // Electron 环境使用 Howler
   audio = new Howl({
     src: [audioUrl],
+    format: [format],
     html5: true,
+    xhr: {
+      withCredentials: false
+    },
     rate: playbackRate.value,
     onload: () => {
+      console.log('Audio loaded, duration:', audio.duration())
       duration.value = audio.duration()
       audio.rate(playbackRate.value)
       audio.play()
       isPlaying.value = true
+    },
+    onloaderror: (id, error) => {
+      console.error('Audio load error:', error)
     },
     onend: () => {
       playNext()
@@ -283,7 +303,11 @@ const startTimeUpdate = () => {
   stopTimeUpdate()
   timeInterval = setInterval(() => {
     if (audio) {
-      currentTime.value = audio.seek() || 0
+      if (window.Capacitor && audio._html5Audio) {
+        currentTime.value = audio._html5Audio.currentTime || 0
+      } else {
+        currentTime.value = audio.seek() || 0
+      }
       checkLoop()
     }
   }, 250)
@@ -304,7 +328,32 @@ const openLearn = () => {
 
 // 播放控制
 const togglePlay = () => {
-  if (!audio) return
+  console.log('togglePlay called, audio:', !!audio, 'isPlaying:', isPlaying.value)
+
+  // 如果没有音频但有播放列表，加载并播放
+  if (!audio && playlist.value.length > 0) {
+    loadAndPlay(currentIndex.value)
+    return
+  }
+
+  if (!audio) {
+    console.log('No audio loaded')
+    return
+  }
+
+  // Capacitor 使用原生 Audio
+  if (window.Capacitor && audio._html5Audio) {
+    const html5Audio = audio._html5Audio
+    console.log('Capacitor audio element:', html5Audio)
+    if (html5Audio.paused) {
+      html5Audio.play().catch(e => console.error('Play error:', e))
+    } else {
+      html5Audio.pause()
+    }
+    return
+  }
+
+  // Electron 使用 Howler
   if (isPlaying.value) {
     audio.pause()
   } else {
@@ -358,10 +407,16 @@ const setSpeed = (speed) => {
 
 // 跳转到指定时间
 const seekTo = (time) => {
-  if (audio) {
-    audio.seek(time)
+  if (!audio) return
+
+  if (window.Capacitor && audio._html5Audio) {
+    audio._html5Audio.currentTime = time
     currentTime.value = time
+    return
   }
+
+  audio.seek(time)
+  currentTime.value = time
 }
 
 // 循环播放控制
@@ -425,18 +480,220 @@ defineExpose({
 </script>
 
 <style scoped>
+/* 移动端悬浮小按钮 */
+.player-mini {
+  position: fixed;
+  bottom: 85px;
+  right: 15px;
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+  z-index: 1001;
+  cursor: pointer;
+}
+
+.mini-cover {
+  font-size: 20px;
+}
+
+.mini-play-btn {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 20px;
+  height: 20px;
+  background: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #667eea;
+}
+
+/* 移动端播放器 - 2行3列布局 */
+@media (max-width: 768px) {
+  .player-bar {
+    position: fixed !important;
+    bottom: 75px !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    max-width: 100vw !important;
+    background: #fff !important;
+    padding: 8px 12px !important;
+    z-index: 1002 !important;
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.15) !important;
+    border-radius: 16px 16px 0 0 !important;
+    max-height: 45vh !important;
+    overflow-y: auto !important;
+  }
+
+  .player-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid #eee;
+  }
+
+  .close-btn {
+    background: #f5f5f5;
+    border: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    font-size: 14px;
+    color: #666;
+    cursor: pointer;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .close-btn:hover {
+    background: #e0e0e0;
+  }
+
+  .player-title-text {
+    font-size: 13px;
+    font-weight: 500;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+  }
+
+  .playlist-btn {
+    background: none;
+    border: none;
+    font-size: 14px;
+    color: #666;
+    cursor: pointer;
+    padding: 5px;
+    flex-shrink: 0;
+  }
+
+  /* 第一行：3列播放控制 */
+  .player-row1 {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+
+  .player-row1 .control-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #333;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+  }
+
+  .player-row1 .play-btn {
+    width: 48px;
+    height: 48px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 50%;
+    color: #fff;
+  }
+
+  /* 第二行：进度条 + 速度/循环 */
+  .player-row2 {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .player-progress {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .progress-bar {
+    flex: 1;
+    height: 4px;
+    background: #e0e0e0;
+    border-radius: 2px;
+    cursor: pointer;
+  }
+
+  .progress {
+    height: 100%;
+    background: #667eea;
+    border-radius: 2px;
+  }
+
+  .time-display {
+    font-size: 11px;
+    color: #666;
+    min-width: 70px;
+    text-align: right;
+  }
+
+  .speed-loop-btns {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+
+  .speed-btn {
+    padding: 3px 6px;
+    border: 1px solid #e0e0e0;
+    background: #fff;
+    border-radius: 10px;
+    font-size: 10px;
+    cursor: pointer;
+  }
+
+  .speed-btn.active {
+    background: #667eea;
+    color: #fff;
+    border-color: #667eea;
+  }
+
+  .loop-btn {
+    padding: 3px 8px;
+    border: 1px solid #e0e0e0;
+    background: #fff;
+    border-radius: 10px;
+    font-size: 12px;
+    cursor: pointer;
+    margin-left: 4px;
+  }
+
+  .loop-btn.active {
+    background: #667eea;
+    color: #fff;
+  }
+}
+
 .player-bar {
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
+  width: 100%;
+  max-width: 100vw;
   background: #fff;
   border-top: 1px solid #e0e0e0;
-  padding: 10px 20px;
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  z-index: 100;
+  padding: 8px 20px;
+  z-index: 999 !important;
+  box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+  min-height: 70px;
 }
 
 body.theme-dark .player-bar {
@@ -444,76 +701,121 @@ body.theme-dark .player-bar {
   border-top-color: #333;
 }
 
-.player-info {
+/* 头部：关闭按钮 + 标题 + 列表按钮 */
+.player-header {
   display: flex;
   align-items: center;
-  gap: 10px;
-  min-width: 150px;
-  cursor: pointer;
+  gap: 8px;
+  margin-bottom: 6px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #eee;
 }
 
-.player-cover {
-  width: 40px;
-  height: 40px;
-  background: #f0f0f0;
-  border-radius: 4px;
+body.theme-dark .player-header {
+  border-bottom-color: #333;
+}
+
+.close-btn {
+  background: #f5f5f5;
+  border: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  font-size: 12px;
+  color: #666;
+  cursor: pointer;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 20px;
 }
 
-.player-title .title {
-  font-size: 14px;
+body.theme-dark .close-btn {
+  background: #333;
+  color: #aaa;
+}
+
+.close-btn:hover {
+  background: #e0e0e0;
+}
+
+body.theme-dark .close-btn:hover {
+  background: #444;
+}
+
+.player-title-text {
+  font-size: 13px;
   font-weight: 500;
-  max-width: 150px;
+  flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
 }
 
-body.theme-dark .player-title .title {
+body.theme-dark .player-title-text {
   color: #e0e0e0;
 }
 
-.player-title .subtitle {
-  font-size: 12px;
+.playlist-btn {
+  background: none;
+  border: none;
+  font-size: 14px;
   color: #666;
+  cursor: pointer;
+  padding: 5px;
+  flex-shrink: 0;
 }
 
-.player-controls {
+body.theme-dark .playlist-btn {
+  color: #aaa;
+}
+
+/* 第一行：3列播放控制 */
+.player-row1 {
   display: flex;
+  justify-content: space-around;
   align-items: center;
-  gap: 10px;
+  margin-bottom: 8px;
 }
 
-.control-btn {
+.player-row1 .control-btn {
   background: none;
   border: none;
   cursor: pointer;
-  padding: 5px;
   color: #333;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 8px;
 }
 
-body.theme-dark .control-btn {
+body.theme-dark .player-row1 .control-btn {
   color: #e0e0e0;
 }
 
-.control-btn.play-btn {
-  color: #667eea;
+.player-row1 .play-btn {
+  width: 44px;
+  height: 44px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 50%;
+  color: #fff;
 }
 
-.player-progress {
-  flex: 1;
+/* 第二行：进度条 + 速度/循环 */
+.player-row2 {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.player-row2 .player-progress {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
-.progress-bar {
+.player-row2 .progress-bar {
   flex: 1;
   height: 4px;
   background: #e0e0e0;
@@ -521,36 +823,47 @@ body.theme-dark .control-btn {
   cursor: pointer;
 }
 
-.progress {
+body.theme-dark .player-row2 .progress-bar {
+  background: #333;
+}
+
+.player-row2 .progress {
   height: 100%;
   background: #667eea;
   border-radius: 2px;
 }
 
-.time-display {
-  font-size: 12px;
+.player-row2 .time-display {
+  font-size: 11px;
   color: #666;
-  min-width: 80px;
+  min-width: 70px;
+  text-align: right;
 }
 
-/* 速度控制 */
-.speed-control {
+body.theme-dark .player-row2 .time-display {
+  color: #aaa;
+}
+
+.speed-loop-btns {
   display: flex;
+  justify-content: center;
+  align-items: center;
   gap: 4px;
+  flex-wrap: wrap;
 }
 
 .speed-btn {
-  background: #f0f0f0;
-  border: none;
-  border-radius: 4px;
-  padding: 4px 8px;
-  font-size: 11px;
+  padding: 3px 6px;
+  border: 1px solid #e0e0e0;
+  background: #fff;
+  border-radius: 10px;
+  font-size: 10px;
   cursor: pointer;
-  color: #666;
 }
 
 body.theme-dark .speed-btn {
   background: #333;
+  border-color: #444;
   color: #aaa;
 }
 
@@ -565,27 +878,22 @@ body.theme-dark .speed-btn:hover {
 .speed-btn.active {
   background: #667eea;
   color: #fff;
-}
-
-/* 循环控制 */
-.loop-control {
-  display: flex;
-  gap: 4px;
-  align-items: center;
+  border-color: #667eea;
 }
 
 .loop-btn {
-  background: #f0f0f0;
-  border: none;
-  border-radius: 4px;
-  padding: 4px 8px;
+  padding: 3px 8px;
+  border: 1px solid #e0e0e0;
+  background: #fff;
+  border-radius: 10px;
   font-size: 12px;
   cursor: pointer;
-  color: #666;
+  margin-left: 4px;
 }
 
 body.theme-dark .loop-btn {
   background: #333;
+  border-color: #444;
   color: #aaa;
 }
 
@@ -600,73 +908,7 @@ body.theme-dark .loop-btn:hover {
 .loop-btn.active {
   background: #667eea;
   color: #fff;
-}
-
-/* 定时关闭 */
-.sleep-timer {
-  position: relative;
-}
-
-.sleep-timer-btn {
-  background: #f0f0f0;
-  border: none;
-  border-radius: 4px;
-  padding: 4px 8px;
-  font-size: 12px;
-  cursor: pointer;
-  color: #666;
-}
-
-body.theme-dark .sleep-timer-btn {
-  background: #333;
-  color: #aaa;
-}
-
-.sleep-timer-btn.active {
-  background: #f59e0b;
-  color: #fff;
-}
-
-.sleep-timer-menu {
-  position: absolute;
-  bottom: 100%;
-  right: 0;
-  background: #fff;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  padding: 8px 0;
-  min-width: 100px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-  z-index: 200;
-  margin-bottom: 8px;
-}
-
-body.theme-dark .sleep-timer-menu {
-  background: #1e1e1e;
-  border-color: #333;
-}
-
-.sleep-timer-option {
-  padding: 8px 16px;
-  cursor: pointer;
-  text-align: center;
-}
-
-.sleep-timer-option:hover {
-  background: #f5f5f5;
-}
-
-body.theme-dark .sleep-timer-option:hover {
-  background: #333;
-}
-
-.sleep-timer-option.cancel {
-  color: #ef4444;
-  border-top: 1px solid #eee;
-}
-
-body.theme-dark .sleep-timer-option.cancel {
-  border-top-color: #333;
+  border-color: #667eea;
 }
 
 /* 播放列表 */

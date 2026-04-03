@@ -63,11 +63,12 @@
           :key="episode.id"
           class="episode-item"
           :class="{ selected: selectedEpisodes.includes(episode.id) }"
+          @click="toggleSelect(episode.id)"
         >
-          <div class="episode-checkbox" @click.stop="toggleSelect(episode.id)">
+          <span class="episode-checkbox">
             {{ selectedEpisodes.includes(episode.id) ? '☑️' : '⬜' }}
-          </div>
-          <div class="episode-info" @click="toggleSelect(episode.id)">
+          </span>
+          <div class="episode-info">
             <h3>{{ episode.title }}</h3>
             <div class="episode-meta">
               <span :class="'badge badge-' + episode.difficulty">
@@ -80,10 +81,10 @@
             </div>
           </div>
           <div class="episode-actions">
-            <button class="btn btn-secondary" @click.stop="showMoveDialog(episode.id)" title="移动到合集">
+            <button class="btn-icon" @click.stop="showMoveDialog(episode.id)" title="移动到合集">
               📁
             </button>
-            <button class="btn btn-secondary" style="color: #ef4444;" @click.stop="deleteOne(episode)" title="删除">
+            <button class="btn-icon" style="color: #ef4444;" @click.stop="deleteOne(episode)" title="删除">
               🗑️
             </button>
           </div>
@@ -270,7 +271,8 @@ onMounted(async () => {
 .episode-item {
   display: flex;
   align-items: center;
-  gap: 15px;
+  gap: 10px;
+  padding: 10px 15px;
 }
 
 .episode-item.selected {
@@ -283,18 +285,20 @@ body.theme-dark .episode-item.selected {
 }
 
 .episode-checkbox {
-  font-size: 20px;
+  font-size: 18px;
   cursor: pointer;
-  padding: 5px;
+  flex-shrink: 0;
 }
 
 .episode-info {
   flex: 1;
+  min-width: 0;
   cursor: pointer;
 }
 
 .episode-actions {
   display: flex;
-  gap: 8px;
+  gap: 4px;
+  flex-shrink: 0;
 }
 </style>

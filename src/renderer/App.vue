@@ -1,7 +1,60 @@
 <template>
   <div id="app" :class="{ 'is-mobile': isMobile }">
+    <!-- 移动端顶部标题栏 -->
+    <header class="mobile-header" v-if="isMobile">
+      <span class="mobile-header-title">Open Listen AI</span>
+      <router-link to="/settings" style="color: white;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+        </svg>
+      </router-link>
+    </header>
+
     <router-view />
+
     <PlayerBar ref="playerBar" />
+
+    <!-- 移动端底部导航栏 -->
+    <nav class="mobile-nav" v-if="isMobile">
+      <div class="mobile-nav-content">
+        <router-link to="/" class="mobile-nav-item" :class="{ active: $route.path === '/' }">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+            <polyline points="9 22 9 12 15 12 15 22"/>
+          </svg>
+          <span>首页</span>
+        </router-link>
+        <router-link to="/manage" class="mobile-nav-item" :class="{ active: $route.path === '/manage' }">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+          </svg>
+          <span>课程</span>
+        </router-link>
+        <router-link to="/wrong-answers" class="mobile-nav-item" :class="{ active: $route.path === '/wrong-answers' }">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="15" y1="9" x2="9" y2="15"/>
+            <line x1="9" y1="9" x2="15" y2="15"/>
+          </svg>
+          <span>错题</span>
+        </router-link>
+        <router-link to="/vocabulary" class="mobile-nav-item" :class="{ active: $route.path === '/vocabulary' }">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+          </svg>
+          <span>生词</span>
+        </router-link>
+        <router-link to="/settings" class="mobile-nav-item" :class="{ active: $route.path === '/settings' }">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+          <span>设置</span>
+        </router-link>
+      </div>
+    </nav>
   </div>
 </template>
 
@@ -22,21 +75,21 @@ onMounted(() => {
   }
   checkMobile()
   window.addEventListener('resize', checkMobile)
-})
 
-// 暴露给全局
-window.playerBar = {
-  setPlaylist: (episodes, index) => playerBar.value?.setPlaylist(episodes, index),
-  getPlaylist: () => playerBar.value?.getPlaylist(),
-  getCurrentIndex: () => playerBar.value?.getCurrentIndex(),
-  getCurrentTime: () => playerBar.value?.getCurrentTime(),
-  getDuration: () => playerBar.value?.getDuration(),
-  getIsPlaying: () => playerBar.value?.getIsPlaying(),
-  getPlaybackRate: () => playerBar.value?.getPlaybackRate(),
-  seekTo: (time) => playerBar.value?.seekTo(time),
-  togglePlay: () => playerBar.value?.togglePlay(),
-  setSpeed: (speed) => playerBar.value?.setSpeed(speed)
-}
+  // 暴露播放器到全局（必须在组件挂载后）
+  window.playerBar = {
+    setPlaylist: (episodes, index) => playerBar.value?.setPlaylist(episodes, index),
+    getPlaylist: () => playerBar.value?.getPlaylist(),
+    getCurrentIndex: () => playerBar.value?.getCurrentIndex(),
+    getCurrentTime: () => playerBar.value?.getCurrentTime(),
+    getDuration: () => playerBar.value?.getDuration(),
+    getIsPlaying: () => playerBar.value?.getIsPlaying(),
+    getPlaybackRate: () => playerBar.value?.getPlaybackRate(),
+    seekTo: (time) => playerBar.value?.seekTo(time),
+    togglePlay: () => playerBar.value?.togglePlay(),
+    setSpeed: (speed) => playerBar.value?.setSpeed(speed)
+  }
+})
 </script>
 
 <style>
@@ -44,6 +97,7 @@ window.playerBar = {
   min-height: 100vh;
   background: #f5f7fa;
   padding-bottom: 70px;
+  overflow-x: hidden;
 }
 
 body.theme-dark #app {

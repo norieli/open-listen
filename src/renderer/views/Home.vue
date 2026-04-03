@@ -15,28 +15,32 @@
     </nav>
 
     <!-- 主内容 -->
-    <main class="container" style="padding-top: 30px;">
-      <!-- 学习统计 -->
-      <div class="stats-cards" style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 15px; margin-bottom: 20px;">
-        <div class="card stat-card" style="text-align: center; padding: 15px;">
-          <div style="font-size: 24px; font-weight: bold; color: #667eea;">{{ stats.completedCount }}</div>
-          <div style="font-size: 13px; color: #666;">已完成</div>
+    <main class="container" style="padding-top: 20px;">
+      <!-- 学习统计 - 2行3列 -->
+      <div class="stats-cards" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 15px;">
+        <div class="card stat-card" style="text-align: center; padding: 10px 5px;">
+          <div style="font-size: 18px; font-weight: bold; color: #667eea;">{{ stats.completedCount }}</div>
+          <div style="font-size: 10px; color: #666;">已完成</div>
         </div>
-        <div class="card stat-card" style="text-align: center; padding: 15px;">
-          <div style="font-size: 24px; font-weight: bold; color: #10b981;">{{ stats.episodeCount }}</div>
-          <div style="font-size: 13px; color: #666;">课程总数</div>
+        <div class="card stat-card" style="text-align: center; padding: 10px 5px;">
+          <div style="font-size: 18px; font-weight: bold; color: #10b981;">{{ stats.episodeCount }}</div>
+          <div style="font-size: 10px; color: #666;">课程</div>
         </div>
-        <div class="card stat-card" style="text-align: center; padding: 15px;">
-          <div style="font-size: 24px; font-weight: bold; color: #ef4444;">{{ stats.wrongCount }}</div>
-          <div style="font-size: 13px; color: #666;">错题数</div>
+        <div class="card stat-card" style="text-align: center; padding: 10px 5px;">
+          <div style="font-size: 18px; font-weight: bold; color: #ef4444;">{{ stats.wrongCount }}</div>
+          <div style="font-size: 10px; color: #666;">错题</div>
         </div>
-        <div class="card stat-card" style="text-align: center; padding: 15px;">
-          <div style="font-size: 24px; font-weight: bold; color: #f59e0b;">{{ stats.vocabCount }}</div>
-          <div style="font-size: 13px; color: #666;">生词数</div>
+        <div class="card stat-card" style="text-align: center; padding: 10px 5px;">
+          <div style="font-size: 18px; font-weight: bold; color: #f59e0b;">{{ stats.vocabCount }}</div>
+          <div style="font-size: 10px; color: #666;">生词</div>
         </div>
-        <div class="card stat-card" style="text-align: center; padding: 15px;">
-          <div style="font-size: 24px; font-weight: bold; color: #8b5cf6;">{{ stats.streakDays }}🔥</div>
-          <div style="font-size: 13px; color: #666;">连续学习</div>
+        <div class="card stat-card" style="text-align: center; padding: 10px 5px;">
+          <div style="font-size: 18px; font-weight: bold; color: #8b5cf6;">{{ stats.streakDays }}🔥</div>
+          <div style="font-size: 10px; color: #666;">连续</div>
+        </div>
+        <div class="card stat-card" style="text-align: center; padding: 10px 5px;">
+          <div style="font-size: 18px; font-weight: bold; color: #ec4899;">{{ stats.favoriteCount || 0 }}</div>
+          <div style="font-size: 10px; color: #666;">收藏</div>
         </div>
       </div>
 
@@ -83,14 +87,13 @@
 
       <!-- 课程列表 -->
       <div class="episode-list" v-if="filteredEpisodes.length > 0">
-        <div 
-          v-for="episode in filteredEpisodes" 
+        <div
+          v-for="episode in filteredEpisodes"
           :key="episode.id"
           class="episode-item"
-          @click="playEpisode(episode)"
           @dblclick="goToLearn(episode.id)"
         >
-          <div class="episode-info">
+          <div class="episode-info" @click="goToLearn(episode.id)">
             <h3>{{ episode.title }}</h3>
             <div class="episode-meta">
               <span :class="'badge badge-' + episode.difficulty">
@@ -106,13 +109,13 @@
             </div>
           </div>
           <div class="episode-actions">
-            <button class="btn btn-secondary" style="padding: 8px 12px; font-size: 16px;" @click.stop="goToLearn(episode.id)" title="学习">
+            <button class="btn-icon" @click.stop="goToLearn(episode.id)" title="学习">
               📖
             </button>
-            <button class="btn btn-secondary" style="padding: 8px 12px; font-size: 16px;" @click.stop="playEpisode(episode)" title="播放">
+            <button class="btn-icon" @click.stop="playEpisode(episode)" title="播放">
               ▶️
             </button>
-            <button class="btn btn-secondary" style="padding: 8px 12px; font-size: 16px;" @click.stop="toggleFavorite(episode.id)">
+            <button class="btn-icon" @click.stop="toggleFavorite(episode.id)">
               {{ isFavorite(episode.id) ? '❤️' : '🤍' }}
             </button>
           </div>
@@ -361,6 +364,16 @@ const toggleFavorite = async (episodeId) => {
   await loadFavorites()
 }
 
+// 读取文件内容（用于 Capacitor 环境）
+const readFileContent = (file) => {
+  return new Promise((resolve) => {
+    const reader = new FileReader()
+    reader.onload = (e) => resolve(e.target.result || '')
+    reader.onerror = () => resolve('')
+    reader.readAsText(file)
+  })
+}
+
 // 删除课程
 const deleteEpisode = async (episode) => {
   const confirmed = confirm(`确定要删除 "${episode.title}" 吗？\n\n此操作仅从数据库移除记录，不会删除原始音频文件。`)
@@ -378,7 +391,69 @@ const deleteEpisode = async (episode) => {
 
 // 导入课程 - 打开文件夹选择
 const importEpisode = async () => {
-  const folderPath = await window.api.dialog.openDirectory()
+  let folderPath
+
+  // Capacitor 环境使用 input 选择文件夹
+  if (window.Capacitor) {
+    // 创建一个隐藏的 input 元素选择文件夹
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.webkitdirectory = true
+    input.multiple = true
+    // 限制最多选择 100 个文件，避免 OOM
+    input.dataset.maxFiles = '100'
+
+    return new Promise((resolve) => {
+      input.onchange = async (e) => {
+        const fileList = e.target.files
+        if (!fileList || fileList.length === 0) return
+
+        // 只处理前 100 个文件，避免 OOM
+        const maxFiles = 100
+        const audioExtensions = ['.mp3', '.wav', '.m4a', '.flac', '.ogg']
+
+        // 先筛选音频文件
+        const audioFiles = []
+        for (let i = 0; i < Math.min(fileList.length, maxFiles); i++) {
+          const file = fileList[i]
+          const ext = '.' + file.name.split('.').pop().toLowerCase()
+          if (audioExtensions.includes(ext)) {
+            audioFiles.push({
+              name: file.name,
+              path: file.webkitRelativePath || file.name,
+              file: file // 保存 File 对象引用
+            })
+          }
+        }
+
+        if (audioFiles.length === 0) {
+          alert('没有找到音频文件')
+          return
+        }
+
+        // 获取第一个文件的父文件夹名称
+        const firstFile = fileList[0]
+        const fileName = firstFile.webkitRelativePath || firstFile.name
+        const folderName = fileName.split('/')[0] || '新课程'
+
+        importData.value = {
+          folderPath: '',
+          folderName,
+          title: folderName,
+          difficulty: 'intermediate',
+          category: 'English Pod',
+          collectionId: null,
+          audioFiles: audioFiles // 只保存音频文件
+        }
+
+        showImportModal.value = true
+      }
+      input.click()
+    })
+  }
+
+  // Electron 环境使用原生对话框
+  folderPath = await window.api.dialog.openDirectory()
   if (!folderPath || typeof folderPath !== 'string') return
 
   // 获取文件夹名称作为默认标题
@@ -407,7 +482,50 @@ const confirmImport = async () => {
   showImportModal.value = false
 
   try {
-    const files = await window.api.scanFolder(importData.value.folderPath)
+    let files = []
+
+    // Capacitor 环境：使用 Web File API
+    if (window.Capacitor && importData.value.audioFiles) {
+      files = importData.value.audioFiles
+
+      if (files.length === 0) {
+        alert('没有找到音频文件')
+        return
+      }
+
+      let importedCount = 0
+
+      for (const fileObj of files) {
+        const fileName = fileObj.name.replace(/\.[^/.]+$/, '')
+        const episodeTitle = files.length > 1 ? `${importData.value.title} - ${fileName}` : importData.value.title
+
+        // 创建 Object URL 用于音频播放（临时）
+        // 注意：Object URL 在页面关闭后会失效，需要后续使用 Filesystem 插件持久化
+        const audioUrl = URL.createObjectURL(fileObj.file)
+
+        await window.api.episodes.add({
+          id: Date.now() + Math.random().toString(36).substr(2, 9),
+          title: episodeTitle,
+          difficulty: importData.value.difficulty,
+          category: importData.value.category || 'English Pod',
+          audioPath: audioUrl,
+          lrc: '',
+          translation: '',
+          transcript: '',
+          questions: '[]',
+          collectionId: importData.value.collectionId
+        })
+
+        importedCount++
+      }
+
+      alert(`成功导入 ${importedCount} 个课程`)
+      loadEpisodes()
+      return
+    }
+
+    // Electron 环境：使用原生文件 API
+    files = await window.api.scanFolder(importData.value.folderPath)
 
     if (files.length === 0) {
       alert('文件夹中没有找到音频文件')
